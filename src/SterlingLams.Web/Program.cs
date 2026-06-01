@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -72,9 +73,21 @@ builder.Services.AddControllersWithViews()
 
 builder.Services.AddHttpContextAccessor();
 
+// ─── Forwarded Headers ───────────────────────────────────────────────────────
+// Honour X-Forwarded-Proto/-For from the reverse proxy so Request.Scheme and the
+// generated callback URLs are correct (HTTPS) behind a load balancer.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 var app = builder.Build();
 
 // ─── Middleware Pipeline ─────────────────────────────────────────────────────
+app.UseForwardedHeaders();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
@@ -106,20 +119,10 @@ app.MapControllers(); // API controllers (WebhooksController)
 
     try
     {
-        // In Production: expect migrations to have been run before deploy.
-        // In Development: use EnsureCreated so the app works without `dotnet ef` installed.
-        if (app.Environment.IsDevelopment())
-        {
-            // EnsureCreated creates all tables from the model — no migration files needed.
-            // Switch to MigrateAsync once you've run `dotnet ef migrations add InitialCreate`.
-            var created = await db.Database.EnsureCreatedAsync();
-            if (created) logger.LogInformation("Database created from EF model (EnsureCreated).");
-        }
-        else
-        {
-            // Production: run pending migrations automatically on startup.
-            await db.Database.MigrateAsync();
-        }
+        // Apply migrations on startup in every environment, so dev exercises the same
+        // schema path as production and migration bugs surface locally rather than in prod.
+        await db.Database.MigrateAsync();
+        logger.LogInformation("Database migrations applied.");
     }
     catch (Exception ex)
     {

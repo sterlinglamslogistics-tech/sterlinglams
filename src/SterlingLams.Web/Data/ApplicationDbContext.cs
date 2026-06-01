@@ -28,7 +28,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<Product>(e =>
         {
             e.HasIndex(p => p.Slug).IsUnique();
-            e.HasIndex(p => p.OdooProductId).IsUnique();
+            // Unique only for products actually linked to Odoo; many manually-created
+            // products may share the sentinel 0 (= not linked).
+            e.HasIndex(p => p.OdooProductId).IsUnique().HasFilter("\"OdooProductId\" <> 0");
             e.Property(p => p.Price).HasPrecision(18, 2);
 
             e.HasOne(p => p.Category)

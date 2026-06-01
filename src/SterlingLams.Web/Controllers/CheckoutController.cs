@@ -93,6 +93,28 @@ public class CheckoutController : Controller
         var user = await _userManager.GetUserAsync(User);
         if (user == null) return Challenge();
 
+        // Re-validate stock at order time to prevent overselling (the availability shown
+        // on the checkout page is only a snapshot and may be stale by now).
+        var cartProductIds = cart.Items.Select(i => i.ProductId).ToList();
+        var inventories = await _db.StoreInventories
+            .Where(si => cartProductIds.Contains(si.ProductId))
+            .ToListAsync();
+
+        bool ItemsAvailable() =>
+            vm.FulfillmentType == FulfillmentChoice.StorePickup && vm.SelectedStoreId.HasValue
+                ? cart.Items.All(i => inventories
+                    .Where(si => si.ProductId == i.ProductId && si.StoreId == vm.SelectedStoreId.Value)
+                    .Sum(si => si.AvailableQuantity) >= i.Quantity)
+                : cart.Items.All(i => inventories
+                    .Where(si => si.ProductId == i.ProductId)
+                    .Sum(si => si.AvailableQuantity) >= i.Quantity);
+
+        if (!ItemsAvailable())
+        {
+            TempData["Error"] = "Some items in your cart are no longer available in the requested quantity. Please review your cart.";
+            return RedirectToAction("Index");
+        }
+
         // Compute delivery fee server-side (do not trust client-submitted value)
         var deliveryFee = ComputeDeliveryFee(vm.FulfillmentType, vm.DeliveryAddress?.State);
 
@@ -123,6 +145,12 @@ public class CheckoutController : Controller
 
         if (vm.FulfillmentType == FulfillmentChoice.Delivery)
         {
+            if (vm.DeliveryAddress == null)
+            {
+                TempData["Error"] = "A delivery address is required for delivery orders.";
+                return RedirectToAction("Index");
+            }
+
             var addr = new Address
             {
                 UserId = user.Id,
@@ -160,7 +188,6 @@ public class CheckoutController : Controller
                     .FirstOrDefaultAsync();
             }
 
-            var cartProductIds = cart.Items.Select(i => i.ProductId).ToList();
             var odooProductIdMap = await _db.Products
                 .Where(p => cartProductIds.Contains(p.Id))
                 .ToDictionaryAsync(p => p.Id, p => p.OdooProductId);
@@ -177,7 +204,7 @@ public class CheckoutController : Controller
                         Quantity = i.Quantity,
                         PriceUnit = i.UnitPrice
                     }).ToList(),
-                Note = $"Sterling Lams Web Order: {orderNumber}"
+                Note = $"Sterlin Glams Web Order: {orderNumber}"
             });
 
             order.OdooSaleOrderId = odooOrderId;
@@ -213,9 +240,10 @@ public class CheckoutController : Controller
 
     [HttpGet]
     [AllowAnonymous]
-    public async Task<IActionResult> PaymentCallback(string reference, string trxref)
+    public async Task<IActionResult> PaymentCallback(string? reference, string? trxref, string? session_id)
     {
-        var refToVerify = reference ?? trxref;
+        // Paystack returns reference/trxref; Stripe Checkout returns session_id.
+        var refToVerify = reference ?? trxref ?? session_id;
         if (string.IsNullOrEmpty(refToVerify)) return RedirectToAction("Index", "Home");
 
         var result = await _payment.VerifyPaymentAsync(refToVerify);
@@ -227,7 +255,17 @@ public class CheckoutController : Controller
         }
 
         var order = await _db.Orders.FirstOrDefaultAsync(o => o.OrderNumber == result.OrderNumber);
-        if (order != null)
+
+        // Defence-in-depth: confirm the verified amount covers the order total.
+        if (order != null && result.AmountPaid < order.Total)
+        {
+            _logger.LogWarning("Payment for order {OrderNumber} returned amount {Amount} below total {Total} — not confirming",
+                order.OrderNumber, result.AmountPaid, order.Total);
+            TempData["Error"] = "The amount paid did not match the order total. Please contact support.";
+            return RedirectToAction("Index", "Cart");
+        }
+
+        if (order != null && !order.IsPaid)
         {
             order.IsPaid = true;
             order.PaidAt = DateTime.UtcNow;

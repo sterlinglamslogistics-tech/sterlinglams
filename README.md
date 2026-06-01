@@ -61,7 +61,17 @@ On startup the app will:
 
 ### Granting Admin Access
 
-After registering your account, run this SQL against PostgreSQL:
+For local development you can have an admin auto-seeded on startup by setting the
+credentials in user secrets (never commit them — the values in `appsettings*.json`
+are intentionally blank):
+
+```bash
+cd src/SterlingLams.Web
+dotnet user-secrets set "SeedData:AdminEmail"    "you@example.com"
+dotnet user-secrets set "SeedData:AdminPassword" "ChangeMe@123!"
+```
+
+Otherwise, after registering your account, run this SQL against PostgreSQL:
 ```sql
 INSERT INTO "AspNetUserRoles" ("UserId", "RoleId")
 SELECT u."Id", r."Id"

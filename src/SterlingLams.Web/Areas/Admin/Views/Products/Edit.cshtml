@@ -15,6 +15,9 @@
         @Html.AntiForgeryToken()
         <input type="hidden" asp-for="Id" />
 
+        <div asp-validation-summary="All"
+             class="text-sm text-red-600 bg-red-50 border border-red-100 rounded-sm px-4 py-3 empty:hidden"></div>
+
         <div class="bg-white rounded-sm border border-neutral-100 p-6 space-y-4">
 
             <!-- Name -->
@@ -45,6 +48,7 @@
                             class="w-full border border-neutral-200 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-neutral-400">
                         <option value="">— Select —</option>
                     </select>
+                    <span asp-validation-for="CategoryId" class="text-xs text-red-500"></span>
                 </div>
             </div>
 
@@ -73,9 +77,10 @@
 
             <!-- Odoo ID -->
             <div>
-                <label asp-for="OdooProductId" class="block text-xs text-neutral-500 mb-1">Odoo Product ID</label>
+                <label asp-for="OdooProductId" class="block text-xs text-neutral-500 mb-1">Odoo Product ID <span class="text-neutral-400">(optional)</span></label>
                 <input asp-for="OdooProductId" type="number"
                        class="w-full border border-neutral-200 rounded-sm px-3 py-2 text-sm font-mono focus:outline-none focus:border-neutral-400" />
+                <span asp-validation-for="OdooProductId" class="text-xs text-red-500"></span>
             </div>
 
             <!-- Flags -->

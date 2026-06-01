@@ -62,11 +62,36 @@ public class WebhooksController : ControllerBase
             var reference = data.GetProperty("reference").GetString();
             var amount = data.GetProperty("amount").GetDecimal() / 100m;
 
+            // Match on the order number we passed in metadata (exact), falling back to
+            // the stored payment reference. Never substring-match — order numbers share
+            // a common prefix and would collide.
+            string? orderNumber = null;
+            if (data.TryGetProperty("metadata", out var meta)
+                && meta.ValueKind == System.Text.Json.JsonValueKind.Object
+                && meta.TryGetProperty("order_number", out var onProp))
+            {
+                orderNumber = onProp.GetString();
+            }
+
             var order = await _db.Orders
                 .FirstOrDefaultAsync(o => o.PaymentReference == reference
-                    || (o.OrderNumber != null && reference != null && reference.Contains(o.OrderNumber)));
+                    || (orderNumber != null && o.OrderNumber == orderNumber));
 
-            if (order != null && !order.IsPaid)
+            if (order == null)
+            {
+                _logger.LogWarning("Paystack webhook: no order matched reference {Reference} / order_number {OrderNumber}", reference, orderNumber);
+                return Ok();
+            }
+
+            // Verify the captured amount covers the order total before confirming.
+            if (amount < order.Total)
+            {
+                _logger.LogWarning("Paystack webhook: amount {Amount} is less than order {OrderNumber} total {Total} — not confirming",
+                    amount, order.OrderNumber, order.Total);
+                return Ok();
+            }
+
+            if (!order.IsPaid)
             {
                 order.IsPaid = true;
                 order.PaidAt = DateTime.UtcNow;
@@ -122,6 +147,15 @@ public class WebhooksController : ControllerBase
             {
                 var order = await _db.Orders
                     .FirstOrDefaultAsync(o => o.OrderNumber == orderNumber);
+
+                // Verify the captured amount covers the order total before confirming.
+                var amountPaid = session.AmountTotal.HasValue ? session.AmountTotal.Value / 100m : 0m;
+                if (order != null && amountPaid < order.Total)
+                {
+                    _logger.LogWarning("Stripe webhook: amount {Amount} is less than order {OrderNumber} total {Total} — not confirming",
+                        amountPaid, order.OrderNumber, order.Total);
+                    return Ok();
+                }
 
                 if (order != null && !order.IsPaid)
                 {

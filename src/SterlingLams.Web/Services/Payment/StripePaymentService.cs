@@ -48,7 +48,8 @@ public class StripePaymentService : IPaymentService
                 Mode = "payment",
                 CustomerEmail = request.CustomerEmail,
                 SuccessUrl = request.CallbackUrl + "?session_id={CHECKOUT_SESSION_ID}",
-                CancelUrl = request.CallbackUrl.Replace("/callback", "/cancelled"),
+                // On cancel, send the customer back to their cart on the same host.
+                CancelUrl = new Uri(new Uri(request.CallbackUrl), "/Cart").ToString(),
                 LineItems = new List<Stripe.Checkout.SessionLineItemOptions>
                 {
                     new()
@@ -59,7 +60,7 @@ public class StripePaymentService : IPaymentService
                             UnitAmount = (long)(request.Amount * 100),
                             ProductData = new Stripe.Checkout.SessionLineItemPriceDataProductDataOptions
                             {
-                                Name = $"Sterling Lams Order {request.OrderNumber}"
+                                Name = $"Sterlin Glams Order {request.OrderNumber}"
                             }
                         },
                         Quantity = 1

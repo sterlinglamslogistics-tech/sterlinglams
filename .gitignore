@@ -13,6 +13,9 @@ npm-debug.log*
 # Generated CSS (built by Tailwind)
 src/SterlingLams.Web/wwwroot/css/app.css
 
+# Runtime-uploaded product images (admin uploads)
+src/SterlingLams.Web/wwwroot/images/products/
+
 # Logs
 logs/
 *.log

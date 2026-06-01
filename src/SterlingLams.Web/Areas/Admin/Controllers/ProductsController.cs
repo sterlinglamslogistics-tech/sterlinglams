@@ -20,18 +20,21 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
         private readonly IInventoryService _inventory;
         private readonly IProductImportService _importer;
         private readonly IWebHostEnvironment _env;
+        private readonly ILogger<ProductsController> _logger;
         private const int PageSize = 30;
 
         public ProductsController(
             ApplicationDbContext db,
             IInventoryService inventory,
             IProductImportService importer,
-            IWebHostEnvironment env)
+            IWebHostEnvironment env,
+            ILogger<ProductsController> logger)
         {
             _db = db;
             _inventory = inventory;
             _importer = importer;
             _env = env;
+            _logger = logger;
         }
 
         public async Task<IActionResult> Index(string q = "", int page = 1)
@@ -94,7 +97,7 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
                 GemstoneType = product.GemstoneType,
                 IsActive = product.IsActive,
                 IsFeatured = product.IsFeatured,
-                OdooProductId = product.OdooProductId,
+                OdooProductId = product.OdooProductId == 0 ? null : product.OdooProductId,
                 CategoryId = product.CategoryId,
                 Categories = await _db.Categories.OrderBy(c => c.Name).ToListAsync(),
                 ExistingImages = product.Images.OrderBy(i => i.SortOrder).ToList()
@@ -107,12 +110,24 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Save(AdminProductEditViewModel vm)
         {
-            vm.Categories = await _db.Categories.OrderBy(c => c.Name).ToListAsync();
-
-            if (!ModelState.IsValid)
+            // Re-show the edit form with dropdown/image state repopulated.
+            async Task<IActionResult> RedisplayAsync()
             {
+                vm.Categories = await _db.Categories.OrderBy(c => c.Name).ToListAsync();
+                vm.ExistingImages = await _db.Set<ProductImage>()
+                    .Where(i => i.ProductId == vm.Id).OrderBy(i => i.SortOrder).ToListAsync();
                 ViewData["Title"] = vm.Id == 0 ? "New Product" : "Edit Product";
                 return View("Edit", vm);
+            }
+
+            if (!ModelState.IsValid)
+                return await RedisplayAsync();
+
+            // Validate the selected category actually exists.
+            if (!await _db.Categories.AnyAsync(c => c.Id == vm.CategoryId))
+            {
+                ModelState.AddModelError(nameof(vm.CategoryId), "The selected category no longer exists.");
+                return await RedisplayAsync();
             }
 
             Product product;
@@ -123,23 +138,29 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
             }
             else
             {
-                product = await _db.Products.FindAsync(vm.Id) ?? new Product();
+                var existing = await _db.Products.FindAsync(vm.Id);
+                if (existing == null) return NotFound();
+                product = existing;
             }
 
             product.Name = vm.Name.Trim();
             product.Slug = string.IsNullOrWhiteSpace(vm.Slug)
-                ? Regex.Replace(vm.Name.ToLower().Trim(), @"[^a-z0-9]+", "-")
+                ? Regex.Replace(vm.Name.ToLower().Trim(), @"[^a-z0-9]+", "-").Trim('-')
                 : vm.Slug.Trim();
 
             // Slug uniqueness check
-            var slugExists = await _db.Products.AnyAsync(p => p.Slug == product.Slug && p.Id != vm.Id);
-            if (slugExists)
+            if (await _db.Products.AnyAsync(p => p.Slug == product.Slug && p.Id != vm.Id))
             {
-                vm.Categories = await _db.Categories.OrderBy(c => c.Name).ToListAsync();
-                vm.ExistingImages = await _db.Set<ProductImage>().Where(i => i.ProductId == vm.Id).ToListAsync();
                 ModelState.AddModelError(nameof(vm.Slug), "This slug is already used by another product. Choose a different one.");
-                ViewData["Title"] = vm.Id == 0 ? "New Product" : "Edit Product";
-                return View("Edit", vm);
+                return await RedisplayAsync();
+            }
+
+            // Odoo ID is optional (0 = not linked); enforce uniqueness only when supplied.
+            if (vm.OdooProductId is int odooId && odooId != 0
+                && await _db.Products.AnyAsync(p => p.OdooProductId == odooId && p.Id != vm.Id))
+            {
+                ModelState.AddModelError(nameof(vm.OdooProductId), "Another product is already linked to this Odoo Product ID.");
+                return await RedisplayAsync();
             }
 
             product.Description = vm.Description;
@@ -149,11 +170,20 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
             product.GemstoneType = vm.GemstoneType;
             product.IsActive = vm.IsActive;
             product.IsFeatured = vm.IsFeatured;
-            product.OdooProductId = vm.OdooProductId;
-            product.CategoryId = vm.CategoryId ?? product.CategoryId;
+            product.OdooProductId = vm.OdooProductId ?? 0;
+            product.CategoryId = vm.CategoryId!.Value;
             product.UpdatedAt = DateTime.UtcNow;
 
-            await _db.SaveChangesAsync();
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Failed to save product '{Name}'", vm.Name);
+                ModelState.AddModelError("", "Could not save the product. Please check your input and try again.");
+                return await RedisplayAsync();
+            }
 
             // ─── Image upload ─────────────────────────────────────────────
             if (vm.ImageFile is { Length: > 0 })
@@ -162,20 +192,14 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
                 var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
                 if (!allowed.Contains(ext))
                 {
-                    vm.Categories = await _db.Categories.OrderBy(c => c.Name).ToListAsync();
-                    vm.ExistingImages = await _db.Set<ProductImage>().Where(i => i.ProductId == product.Id).ToListAsync();
                     ModelState.AddModelError(nameof(vm.ImageFile), "Only JPG, PNG, and WEBP images are allowed.");
-                    ViewData["Title"] = vm.Id == 0 ? "New Product" : "Edit Product";
-                    return View("Edit", vm);
+                    return await RedisplayAsync();
                 }
 
                 if (vm.ImageFile.Length > 5 * 1024 * 1024)
                 {
-                    vm.Categories = await _db.Categories.OrderBy(c => c.Name).ToListAsync();
-                    vm.ExistingImages = await _db.Set<ProductImage>().Where(i => i.ProductId == product.Id).ToListAsync();
                     ModelState.AddModelError(nameof(vm.ImageFile), "Image must be 5 MB or smaller.");
-                    ViewData["Title"] = vm.Id == 0 ? "New Product" : "Edit Product";
-                    return View("Edit", vm);
+                    return await RedisplayAsync();
                 }
 
                 var uploadDir = Path.Combine(_env.WebRootPath, "images", "products", product.Id.ToString());
@@ -263,7 +287,19 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
         public async Task<IActionResult> Delete(int id)
         {
             var product = await _db.Products.FindAsync(id);
-            if (product != null)
+            if (product == null) return RedirectToAction(nameof(Index));
+
+            // If the product appears in any order, preserve order history by
+            // deactivating instead of physically deleting it.
+            var isReferenced = await _db.OrderItems.AnyAsync(oi => oi.ProductId == id);
+            if (isReferenced)
+            {
+                product.IsActive = false;
+                product.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+                TempData["Success"] = $"Product '{product.Name}' has past orders, so it was deactivated instead of deleted.";
+            }
+            else
             {
                 _db.Products.Remove(product);
                 await _db.SaveChangesAsync();

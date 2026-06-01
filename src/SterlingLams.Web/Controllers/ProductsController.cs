@@ -192,7 +192,9 @@ public class ProductsController : Controller
     }
 
     // GET /api/products/{id}/inventory (AJAX)
+    // Cached client/proxy-side to blunt repeated hits that fan out to Odoo.
     [HttpGet("api/products/{id:int}/inventory")]
+    [ResponseCache(Duration = 60, Location = ResponseCacheLocation.Any)]
     public async Task<IActionResult> GetInventory(int id)
     {
         var product = await _db.Products.FindAsync(id);

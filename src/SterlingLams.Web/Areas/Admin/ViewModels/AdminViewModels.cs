@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 using SterlingLams.Web.Models.Domain;
 
@@ -80,17 +81,29 @@ namespace SterlingLams.Web.Areas.Admin.ViewModels
     public class AdminProductEditViewModel
     {
         public int Id { get; set; }
+
+        [Required(ErrorMessage = "Name is required.")]
         public string Name { get; set; } = "";
+
         public string Slug { get; set; } = "";
         public string Description { get; set; } = "";
+
+        [Range(0, double.MaxValue, ErrorMessage = "Price must be zero or more.")]
         public decimal Price { get; set; }
+
         public string? Material { get; set; }
         public string? Carat { get; set; }
         public string? GemstoneType { get; set; }
         public bool IsActive { get; set; } = true;
         public bool IsFeatured { get; set; }
-        public int OdooProductId { get; set; }
+
+        // Optional: only set when the product is linked to an Odoo template.
+        // Left blank for manually-created products.
+        public int? OdooProductId { get; set; }
+
+        [Required(ErrorMessage = "Please select a category.")]
         public int? CategoryId { get; set; }
+
         public List<Category> Categories { get; set; } = new();
         public IFormFile? ImageFile { get; set; }
         public List<ProductImage> ExistingImages { get; set; } = new();

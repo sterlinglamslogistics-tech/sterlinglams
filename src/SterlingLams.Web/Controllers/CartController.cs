@@ -34,6 +34,9 @@ public class CartController : Controller
         if (product == null)
             return Json(new { success = false, message = "Product not found." });
 
+        // Aggregate availability across all stores — enough to allow the item into the
+        // cart. Per-store fulfilment (pickup) is re-validated at checkout in
+        // CheckoutController.PlaceOrder, so a sum here cannot oversell a single store.
         var availableStock = product.StoreInventories.Sum(si => si.AvailableQuantity);
         if (availableStock <= 0)
             return Json(new { success = false, message = "This item is currently out of stock." });

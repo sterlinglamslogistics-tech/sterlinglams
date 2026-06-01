@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.Extensions.Caching.Memory;
 using SterlingLams.Web.Services.Odoo.OdooModels;
 
 namespace SterlingLams.Web.Services.Odoo;
@@ -18,10 +19,15 @@ public class OdooService : IOdooService
 {
     private readonly HttpClient _http;
     private readonly OdooSettings _settings;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<OdooService> _logger;
 
-    private int? _uid;
-    private readonly SemaphoreSlim _authLock = new(1, 1);
+    // OdooService is registered as a typed HttpClient (transient), so the resolved uid
+    // must live in shared cache — not an instance field — to avoid re-authenticating on
+    // every call. The lock is static so it serialises auth across all instances.
+    private const string UidCacheKey = "odoo:uid";
+    private static readonly TimeSpan UidCacheTtl = TimeSpan.FromHours(6);
+    private static readonly SemaphoreSlim _authLock = new(1, 1);
 
     private static readonly JsonSerializerOptions _json = new()
     {
@@ -29,10 +35,11 @@ public class OdooService : IOdooService
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
     };
 
-    public OdooService(HttpClient http, OdooSettings settings, ILogger<OdooService> logger)
+    public OdooService(HttpClient http, OdooSettings settings, IMemoryCache cache, ILogger<OdooService> logger)
     {
         _http = http;
         _settings = settings;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -40,12 +47,12 @@ public class OdooService : IOdooService
 
     private async Task<int> GetUidAsync()
     {
-        if (_uid.HasValue) return _uid.Value;
+        if (_cache.TryGetValue(UidCacheKey, out int cachedUid)) return cachedUid;
 
         await _authLock.WaitAsync();
         try
         {
-            if (_uid.HasValue) return _uid.Value;
+            if (_cache.TryGetValue(UidCacheKey, out cachedUid)) return cachedUid;
 
             var request = new OdooRpcRequest
             {
@@ -57,10 +64,10 @@ public class OdooService : IOdooService
                 }
             };
 
-            var response = await PostAsync<int>("jsonrpc", request);
-            _uid = response;
-            _logger.LogInformation("Authenticated with Odoo. UID: {Uid}", _uid);
-            return _uid.Value;
+            var uid = await PostAsync<int>("jsonrpc", request);
+            _cache.Set(UidCacheKey, uid, UidCacheTtl);
+            _logger.LogInformation("Authenticated with Odoo. UID: {Uid}", uid);
+            return uid;
         }
         finally
         {

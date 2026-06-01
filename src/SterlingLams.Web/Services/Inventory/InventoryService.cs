@@ -22,8 +22,6 @@ public class InventoryService : IInventoryService
     private readonly OdooSettings _odooSettings;
     private readonly ILogger<InventoryService> _logger;
 
-    private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(60);
-
     public InventoryService(
         IOdooService odoo,
         ApplicationDbContext db,
