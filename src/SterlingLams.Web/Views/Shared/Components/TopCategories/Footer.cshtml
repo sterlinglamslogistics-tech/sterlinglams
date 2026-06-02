@@ -1,0 +1,8 @@
+@model IList<SterlingLams.Web.ViewComponents.TopCategoriesViewComponent.NavCategory>
+@foreach (var c in Model)
+{
+    <li>
+        <a asp-controller="Products" asp-action="Index" asp-route-category="@c.Slug"
+           class="text-sm text-neutral-300 hover:text-white transition-colors">@c.Name</a>
+    </li>
+}

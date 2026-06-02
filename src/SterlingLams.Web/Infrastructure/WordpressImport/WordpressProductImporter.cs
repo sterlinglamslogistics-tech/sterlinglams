@@ -19,6 +19,17 @@ public static class WordpressProductImporter
 {
     private const int DefaultStockPerStore = 5;
 
+    // Normalise WooCommerce category names onto the store's canonical categories so
+    // imports don't create near-duplicates (e.g. "Necklaces & Pendants" vs "Necklaces").
+    private static readonly Dictionary<string, string> CategoryAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Necklaces & Pendants"] = "Necklaces",
+        ["Bracelets & Bangles"] = "Bracelets",
+        ["Strap Watches"] = "Watches",
+        ["Bracelet Watches"] = "Watches",
+        ["Unisex Brooches"] = "Brooches",
+    };
+
     private sealed class WpProduct
     {
         public int Id { get; set; }
@@ -66,6 +77,7 @@ public static class WordpressProductImporter
         {
             var name = Decode(rawName).Trim();
             if (string.IsNullOrWhiteSpace(name)) name = "Uncategorized";
+            if (CategoryAliases.TryGetValue(name, out var canonical)) name = canonical;
             var slug = Slugify(name);
             if (categoryByKey.TryGetValue(slug, out var existing)) return existing;
             var cat = new Category { Name = name, Slug = slug, IsActive = true };

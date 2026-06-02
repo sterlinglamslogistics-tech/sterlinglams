@@ -97,39 +97,19 @@
 
         <!-- Row 2: Category links -->
         <div class="hidden md:flex items-center justify-center gap-10 py-3 border-t border-neutral-100">
-            <a asp-controller="Products" asp-action="Index" asp-route-category="rings"
+            @await Component.InvokeAsync("TopCategories", new { style = "Nav", count = 4 })
+            <a asp-controller="Products" asp-action="Index"
                class="text-xs tracking-[0.2em] uppercase text-neutral-600 hover:text-neutral-900 transition-colors duration-200">
-                Rings
-            </a>
-            <a asp-controller="Products" asp-action="Index" asp-route-category="necklaces"
-               class="text-xs tracking-[0.2em] uppercase text-neutral-600 hover:text-neutral-900 transition-colors duration-200">
-                Necklaces
-            </a>
-            <a asp-controller="Products" asp-action="Index" asp-route-category="bracelets"
-               class="text-xs tracking-[0.2em] uppercase text-neutral-600 hover:text-neutral-900 transition-colors duration-200">
-                Bracelets
-            </a>
-            <a asp-controller="Products" asp-action="Index" asp-route-category="earrings"
-               class="text-xs tracking-[0.2em] uppercase text-neutral-600 hover:text-neutral-900 transition-colors duration-200">
-                Earrings
-            </a>
-            <a asp-controller="Home" asp-action="Collections"
-               class="text-xs tracking-[0.2em] uppercase text-neutral-600 hover:text-neutral-900 transition-colors duration-200">
-                Collections
+                All Jewellery
             </a>
         </div>
     </nav>
 
     <!-- Mobile menu -->
     <div id="mobile-menu" class="md:hidden hidden border-t border-neutral-100 bg-white px-6 py-6 flex flex-col gap-5">
-        <a asp-controller="Products" asp-action="Index" asp-route-category="rings"
-           class="text-sm tracking-[0.15em] uppercase text-neutral-700">Rings</a>
-        <a asp-controller="Products" asp-action="Index" asp-route-category="necklaces"
-           class="text-sm tracking-[0.15em] uppercase text-neutral-700">Necklaces</a>
-        <a asp-controller="Products" asp-action="Index" asp-route-category="bracelets"
-           class="text-sm tracking-[0.15em] uppercase text-neutral-700">Bracelets</a>
-        <a asp-controller="Products" asp-action="Index" asp-route-category="earrings"
-           class="text-sm tracking-[0.15em] uppercase text-neutral-700">Earrings</a>
+        @await Component.InvokeAsync("TopCategories", new { style = "Mobile", count = 6 })
+        <a asp-controller="Products" asp-action="Index"
+           class="text-sm tracking-[0.15em] uppercase text-neutral-700">All Jewellery</a>
         <a asp-controller="Stores" asp-action="Index"
            class="text-sm tracking-[0.15em] uppercase text-neutral-700">Our Stores</a>
     </div>

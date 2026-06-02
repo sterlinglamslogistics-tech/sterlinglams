@@ -134,6 +134,15 @@ app.MapControllers(); // API controllers (WebhooksController)
 // Seed roles, stores, and categories (all environments)
 await SterlingLams.Web.Infrastructure.SeedData.SeedAsync(app.Services);
 
+// One-off category merge maintenance. Runs only when CATEGORY_MERGE is set, then exits.
+var mergeSpec = Environment.GetEnvironmentVariable("CATEGORY_MERGE");
+if (!string.IsNullOrWhiteSpace(mergeSpec))
+{
+    var mergeLogger = app.Services.GetRequiredService<ILogger<Program>>();
+    await SterlingLams.Web.Infrastructure.Maintenance.CategoryMerge.RunAsync(app.Services, mergeSpec, mergeLogger);
+    return; // one-shot command
+}
+
 // One-off WooCommerce (.wpress) product import. Runs only when WP_IMPORT=1, then exits.
 if (Environment.GetEnvironmentVariable("WP_IMPORT") == "1")
 {
