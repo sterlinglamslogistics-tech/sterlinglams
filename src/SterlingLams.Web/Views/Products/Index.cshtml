@@ -8,7 +8,7 @@
 
     <!-- Page Header -->
     <div class="text-center mb-12">
-        <p class="text-xs tracking-[0.3em] uppercase text-neutral-400 mb-3">Sterlin Glams</p>
+        <p class="text-xs tracking-[0.3em] uppercase text-brand mb-3">Sterlin Glams</p>
         <h1 class="font-cormorant text-5xl font-light text-neutral-900">
             @(Model.PageTitle ?? "Our Collections")
         </h1>
@@ -85,7 +85,7 @@
                 </div>
 
                 <button type="submit"
-                        class="w-full bg-neutral-900 text-white text-xs tracking-[0.2em] uppercase py-3 hover:bg-neutral-700 transition-colors">
+                        class="w-full bg-neutral-900 text-white text-xs tracking-[0.2em] uppercase py-3 hover:bg-brand transition-colors">
                     Apply Filters
                 </button>
 
@@ -151,7 +151,7 @@
 
                                 <!-- Quick actions on hover -->
                                 <div class="absolute bottom-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                    <button class="wishlist-toggle bg-white shadow p-2 hover:bg-neutral-900 hover:text-white transition-colors"
+                                    <button class="wishlist-toggle bg-white shadow p-2 hover:bg-brand hover:border-brand hover:text-white transition-colors"
                                             data-product-id="@product.Id"
                                             aria-label="Wishlist">
                                         <svg class="w-4 h-4 @(product.IsInWishlist ? "fill-neutral-900" : "")"

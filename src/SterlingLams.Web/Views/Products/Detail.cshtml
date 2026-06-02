@@ -39,7 +39,7 @@
 
         <!-- ─── Product Info ──────────────────────────────────────────── -->
         <div class="flex flex-col">
-            <p class="text-xs tracking-[0.3em] uppercase text-neutral-400 mb-2">@Model.CategoryName</p>
+            <p class="text-xs tracking-[0.3em] uppercase text-brand mb-2">@Model.CategoryName</p>
             <h1 class="font-cormorant text-4xl font-light text-neutral-900 mb-4">@Model.Name</h1>
             <p class="text-2xl font-light text-neutral-800 mb-8">@Model.FormattedPrice</p>
 
@@ -97,7 +97,7 @@
                 <button id="add-to-cart"
                         data-product-id="@Model.Id"
                         @(!Model.IsAvailableAnywhere ? "disabled" : "")
-                        class="flex-1 bg-neutral-900 text-white text-xs tracking-[0.2em] uppercase py-4 px-8 hover:bg-neutral-700 transition-colors duration-300 disabled:opacity-40 disabled:cursor-not-allowed">
+                        class="flex-1 bg-neutral-900 text-white text-xs tracking-[0.2em] uppercase py-4 px-8 hover:bg-brand transition-colors duration-300 disabled:opacity-40 disabled:cursor-not-allowed">
                     @(Model.IsAvailableAnywhere ? "Add to Bag" : "Out of Stock")
                 </button>
                 <button id="wishlist-btn"
@@ -164,7 +164,7 @@
     {
         <div class="mt-24">
             <div class="text-center mb-12">
-                <p class="text-xs tracking-[0.3em] uppercase text-neutral-400 mb-3">You may also like</p>
+                <p class="text-xs tracking-[0.3em] uppercase text-brand mb-3">You may also like</p>
                 <h2 class="font-cormorant text-3xl font-light">Related Pieces</h2>
             </div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-6">

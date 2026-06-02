@@ -24,23 +24,25 @@
 
 /* ─── Components ─────────────────────────────────────────────────────────── */
 @layer components {
+  /* Buttons stay elegant black; pink reveals on hover (Tiffany-style accent). */
   .btn-primary {
     @apply inline-block bg-neutral-900 text-white text-xs tracking-[0.2em] uppercase px-10 py-4
-           hover:bg-neutral-700 transition-colors duration-300;
+           hover:bg-brand transition-colors duration-300;
   }
 
   .btn-outline {
     @apply inline-block border border-neutral-900 text-neutral-900 text-xs tracking-[0.2em] uppercase px-10 py-4
-           hover:bg-neutral-900 hover:text-white transition-colors duration-300;
+           hover:bg-brand hover:border-brand hover:text-white transition-colors duration-300;
   }
 
   .form-input {
     @apply w-full border border-neutral-200 px-4 py-3 text-sm
-           focus:outline-none focus:border-neutral-900 transition-colors;
+           focus:outline-none focus:border-brand transition-colors;
   }
 
+  /* Signature pink eyebrow labels. */
   .section-label {
-    @apply text-xs tracking-[0.3em] uppercase text-neutral-400 mb-3;
+    @apply text-xs tracking-[0.3em] uppercase text-brand mb-3;
   }
 
   .section-heading {

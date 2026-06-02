@@ -7,11 +7,11 @@
 <section class="relative h-screen min-h-[600px] flex items-center overflow-hidden">
     <div class="absolute inset-0 bg-neutral-100">
         <!-- Hero image placeholder — replace with actual image -->
-        <div class="w-full h-full bg-gradient-to-br from-neutral-200 via-neutral-100 to-stone-100"></div>
+        <div class="w-full h-full bg-gradient-to-br from-brand-soft via-neutral-100 to-stone-100"></div>
     </div>
 
     <div class="relative z-10 max-w-7xl mx-auto px-6 text-center">
-        <p class="text-xs tracking-[0.4em] uppercase text-neutral-500 mb-6">New Collection 2025</p>
+        <p class="text-xs tracking-[0.4em] uppercase text-brand mb-6">New Collection 2025</p>
         <h1 class="font-cormorant text-6xl md:text-8xl font-light text-neutral-900 leading-none mb-6">
             Timeless<br>
             <em class="italic">Elegance</em>
@@ -21,11 +21,11 @@
         </p>
         <div class="flex flex-col sm:flex-row gap-4 justify-center">
             <a asp-controller="Products" asp-action="Index"
-               class="inline-block bg-neutral-900 text-white text-xs tracking-[0.2em] uppercase px-10 py-4 hover:bg-neutral-700 transition-colors duration-300">
+               class="inline-block bg-neutral-900 text-white text-xs tracking-[0.2em] uppercase px-10 py-4 hover:bg-brand transition-colors duration-300">
                 Shop Collection
             </a>
-            <a asp-controller="Home" asp-action="Collections"
-               class="inline-block border border-neutral-900 text-neutral-900 text-xs tracking-[0.2em] uppercase px-10 py-4 hover:bg-neutral-900 hover:text-white transition-colors duration-300">
+            <a asp-controller="Products" asp-action="Index"
+               class="inline-block border border-neutral-900 text-neutral-900 text-xs tracking-[0.2em] uppercase px-10 py-4 hover:bg-brand hover:border-brand hover:text-white transition-colors duration-300">
                 Explore Lookbook
             </a>
         </div>
@@ -34,7 +34,7 @@
     <!-- Scroll indicator -->
     <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
         <div class="w-px h-12 bg-gradient-to-b from-transparent to-neutral-400"></div>
-        <span class="text-[10px] tracking-[0.3em] uppercase text-neutral-400">Scroll</span>
+        <span class="text-[10px] tracking-[0.3em] uppercase text-brand">Scroll</span>
     </div>
 </section>
 
@@ -46,10 +46,10 @@
 </section>
 
 <!-- ─── Featured Products ─────────────────────────────────────────────────── -->
-<section class="py-20 bg-stone-50">
+<section class="py-20 bg-brand-soft">
     <div class="max-w-7xl mx-auto px-6">
         <div class="text-center mb-14">
-            <p class="text-xs tracking-[0.3em] uppercase text-neutral-400 mb-3">Curated for you</p>
+            <p class="text-xs tracking-[0.3em] uppercase text-brand mb-3">Curated for you</p>
             <h2 class="font-cormorant text-4xl font-light text-neutral-900">Featured Pieces</h2>
         </div>
 
@@ -57,7 +57,7 @@
 
         <div class="text-center mt-12">
             <a asp-controller="Products" asp-action="Index"
-               class="inline-block border border-neutral-900 text-neutral-900 text-xs tracking-[0.2em] uppercase px-12 py-4 hover:bg-neutral-900 hover:text-white transition-colors duration-300">
+               class="inline-block border border-neutral-900 text-neutral-900 text-xs tracking-[0.2em] uppercase px-12 py-4 hover:bg-brand hover:border-brand hover:text-white transition-colors duration-300">
                 View All
             </a>
         </div>
@@ -68,14 +68,14 @@
 <section class="py-20 bg-neutral-900 text-white">
     <div class="max-w-7xl mx-auto px-6 grid md:grid-cols-2 gap-12 items-center">
         <div>
-            <p class="text-xs tracking-[0.3em] uppercase text-neutral-400 mb-4">Our Boutiques</p>
+            <p class="text-xs tracking-[0.3em] uppercase text-brand mb-4">Our Boutiques</p>
             <h2 class="font-cormorant text-4xl font-light mb-6">Visit Us In-Store</h2>
             <p class="text-neutral-400 font-light text-sm leading-relaxed mb-8">
                 Experience our jewellery in person at any of our boutiques.
                 Our consultants are ready to help you find the perfect piece.
             </p>
             <a asp-controller="Stores" asp-action="Index"
-               class="inline-block border border-white text-white text-xs tracking-[0.2em] uppercase px-10 py-4 hover:bg-white hover:text-neutral-900 transition-colors duration-300">
+               class="inline-block border border-white text-white text-xs tracking-[0.2em] uppercase px-10 py-4 hover:bg-brand hover:border-brand transition-colors duration-300">
                 Find a Store
             </a>
         </div>

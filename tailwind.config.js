@@ -13,6 +13,14 @@ module.exports = {
         inter: ['Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
+        // Sterlin Glams signature pink — used the way Tiffany uses its blue:
+        // restrained accents + soft brand-moment backgrounds, on a neutral base.
+        brand: {
+          DEFAULT: '#e84297',
+          soft: '#fdf2f8', // very pale — large section backgrounds
+          light: '#fbd9ea', // soft pink — borders, tags, subtle fills
+          dark: '#c2186e', // deeper — hover / legible pink text
+        },
         gold: {
           50:  '#fdf9f0',
           100: '#faefd4',

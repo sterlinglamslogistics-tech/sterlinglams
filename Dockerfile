@@ -7,6 +7,7 @@ COPY tailwind.config.js postcss.config.js ./
 COPY src/SterlingLams.Web/wwwroot/css/input.css ./src/SterlingLams.Web/wwwroot/css/input.css
 COPY src/SterlingLams.Web/Views ./src/SterlingLams.Web/Views
 COPY src/SterlingLams.Web/Areas ./src/SterlingLams.Web/Areas
+COPY src/SterlingLams.Web/wwwroot/js ./src/SterlingLams.Web/wwwroot/js
 RUN npm run build:css
 
 # ── Stage 2: .NET Build ─────────────────────────────────────────────────────────

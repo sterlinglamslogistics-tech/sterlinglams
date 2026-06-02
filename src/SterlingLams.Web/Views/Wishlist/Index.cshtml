@@ -37,7 +37,7 @@
                     <!-- Remove button -->
                     <form asp-controller="Wishlist" asp-action="Remove" method="post" class="absolute top-2 right-2">
                         <input type="hidden" name="productId" value="@product.Id" />
-                        <button type="submit" class="bg-white shadow p-1.5 hover:bg-neutral-900 hover:text-white transition-colors" aria-label="Remove">
+                        <button type="submit" class="bg-white shadow p-1.5 hover:bg-brand hover:border-brand hover:text-white transition-colors" aria-label="Remove">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
                             </svg>
@@ -49,7 +49,7 @@
 
                     @if (isAvailable)
                     {
-                        <button class="add-to-cart w-full border border-neutral-900 text-neutral-900 text-xs tracking-widest uppercase py-2 hover:bg-neutral-900 hover:text-white transition-colors"
+                        <button class="add-to-cart w-full border border-neutral-900 text-neutral-900 text-xs tracking-widest uppercase py-2 hover:bg-brand hover:border-brand hover:text-white transition-colors"
                                 data-product-id="@product.Id">
                             Add to Bag
                         </button>
