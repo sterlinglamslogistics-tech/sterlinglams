@@ -119,7 +119,7 @@ public class InventoryService : IInventoryService
     public async Task SyncAllAsync()
     {
         var odooProductIds = await _db.Products
-            .Where(p => p.IsActive)
+            .Where(p => p.IsActive && p.OdooProductId != 0)
             .Select(p => p.OdooProductId)
             .ToArrayAsync();
 

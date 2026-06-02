@@ -134,4 +134,15 @@ app.MapControllers(); // API controllers (WebhooksController)
 // Seed roles, stores, and categories (all environments)
 await SterlingLams.Web.Infrastructure.SeedData.SeedAsync(app.Services);
 
+// One-off WooCommerce (.wpress) product import. Runs only when WP_IMPORT=1, then exits.
+if (Environment.GetEnvironmentVariable("WP_IMPORT") == "1")
+{
+    var importLogger = app.Services.GetRequiredService<ILogger<Program>>();
+    var importDir = Environment.GetEnvironmentVariable("WP_IMPORT_DIR")
+        ?? Path.Combine(builder.Environment.ContentRootPath, "..", "..", ".wpimport");
+    await SterlingLams.Web.Infrastructure.WordpressImport.WordpressProductImporter
+        .RunAsync(app.Services, importDir, importLogger);
+    return; // one-shot command; do not start the web server
+}
+
 await app.RunAsync();

@@ -1,0 +1,10 @@
+@model IList<SterlingLams.Web.ViewComponents.StoresFooterViewComponent.StoreFooterItem>
+<ul class="space-y-4">
+    @foreach (var store in Model)
+    {
+        <li class="text-sm text-neutral-400 font-light">
+            <span class="text-white block">@store.Name</span>
+            <span>@store.Address</span>
+        </li>
+    }
+</ul>

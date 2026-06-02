@@ -13,8 +13,11 @@ npm-debug.log*
 # Generated CSS (built by Tailwind)
 src/SterlingLams.Web/wwwroot/css/app.css
 
-# Runtime-uploaded product images (admin uploads)
+# Runtime-uploaded product images (admin uploads + WP import)
 src/SterlingLams.Web/wwwroot/images/products/
+
+# WooCommerce (.wpress) import working folder (large extracted SQL + images)
+.wpimport/
 
 # Logs
 logs/

@@ -1,0 +1,20 @@
+@model IList<SterlingLams.Web.ViewComponents.FeaturedProductsViewComponent.FeaturedItem>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+    @foreach (var p in Model)
+    {
+        <a asp-controller="Products" asp-action="Detail" asp-route-slug="@p.Slug" class="group cursor-pointer block">
+            <div class="aspect-square bg-neutral-100 mb-4 overflow-hidden relative">
+                <img src="@p.ImageUrl" alt="@p.Name" loading="lazy"
+                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                <div class="absolute inset-0 flex items-end justify-center pb-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <span class="bg-white text-neutral-900 text-xs tracking-widest uppercase px-6 py-2 shadow-lg">
+                        Quick View
+                    </span>
+                </div>
+            </div>
+            <h3 class="font-light text-sm text-neutral-700 group-hover:text-neutral-900 transition-colors">@p.Name</h3>
+            <p class="text-xs text-neutral-400 mt-1">₦@p.Price.ToString("N0")</p>
+        </a>
+    }
+</div>

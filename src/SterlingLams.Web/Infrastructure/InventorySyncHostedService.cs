@@ -48,7 +48,7 @@ public class InventorySyncHostedService : BackgroundService
             var inventory = scope.ServiceProvider.GetRequiredService<IInventoryService>();
 
             var odooProductIds = await db.Products
-                .Where(p => p.IsActive)
+                .Where(p => p.IsActive && p.OdooProductId != 0)
                 .Select(p => p.OdooProductId)
                 .ToArrayAsync(ct);
 

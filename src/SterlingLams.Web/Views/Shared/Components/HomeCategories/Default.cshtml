@@ -1,0 +1,16 @@
+@model IList<SterlingLams.Web.ViewComponents.HomeCategoriesViewComponent.HomeCategory>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    @foreach (var cat in Model)
+    {
+        <a asp-controller="Products" asp-action="Index" asp-route-category="@cat.Slug"
+           class="group flex flex-col items-center py-10 px-6 bg-neutral-50 hover:bg-neutral-900 transition-all duration-500 cursor-pointer">
+            <div class="w-16 h-16 rounded-full overflow-hidden mb-4 shadow-sm bg-white">
+                <img src="@cat.ImageUrl" alt="@cat.Name" loading="lazy"
+                     class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+            </div>
+            <span class="text-xs tracking-[0.2em] uppercase text-neutral-600 group-hover:text-white transition-colors duration-500">
+                @cat.Name
+            </span>
+        </a>
+    }
+</div>
