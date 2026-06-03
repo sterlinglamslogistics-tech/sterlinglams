@@ -15,14 +15,20 @@ public class InventorySyncHostedService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<InventorySyncHostedService> _logger;
-    private readonly TimeSpan _interval = TimeSpan.FromMinutes(5);
+    private readonly TimeSpan _interval;
 
     public InventorySyncHostedService(
         IServiceScopeFactory scopeFactory,
-        ILogger<InventorySyncHostedService> logger)
+        ILogger<InventorySyncHostedService> logger,
+        IConfiguration config)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        // Configurable cadence (minutes); default 2. Per-order sync already updates instantly,
+        // so this is the catch-all for stock changed directly in Odoo / at the POS.
+        var minutes = config.GetValue("Odoo:InventorySyncMinutes", 2.0);
+        if (minutes < 0.5) minutes = 0.5;
+        _interval = TimeSpan.FromMinutes(minutes);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

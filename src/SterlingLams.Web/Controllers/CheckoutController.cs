@@ -7,6 +7,7 @@ using SterlingLams.Web.Models.Domain;
 using SterlingLams.Web.Models.ViewModels;
 using SterlingLams.Web.Services.Payment;
 using SterlingLams.Web.Services.Odoo;
+using SterlingLams.Web.Services.Inventory;
 using Microsoft.EntityFrameworkCore;
 
 namespace SterlingLams.Web.Controllers;
@@ -19,6 +20,7 @@ public class CheckoutController : Controller
     private readonly ApplicationDbContext _db;
     private readonly IPaymentService _payment;
     private readonly IOdooService _odoo;
+    private readonly IInventoryService _inventory;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<CheckoutController> _logger;
     private readonly IConfiguration _config;
@@ -27,6 +29,7 @@ public class CheckoutController : Controller
         ApplicationDbContext db,
         IPaymentService payment,
         IOdooService odoo,
+        IInventoryService inventory,
         UserManager<ApplicationUser> userManager,
         ILogger<CheckoutController> logger,
         IConfiguration config)
@@ -34,6 +37,7 @@ public class CheckoutController : Controller
         _db = db;
         _payment = payment;
         _odoo = odoo;
+        _inventory = inventory;
         _userManager = userManager;
         _logger = logger;
         _config = config;
@@ -291,8 +295,20 @@ public class CheckoutController : Controller
             // as the fallback when the provider webhook can't reach us (e.g. localhost).
             if (_config.GetValue<bool>("Odoo:AutoConfirmOrders") && order.OdooSaleOrderId is int soId && soId > 0)
             {
-                try { await _odoo.ConfirmSaleOrderAsync(soId); }
-                catch (Exception ex) { _logger.LogError(ex, "Odoo confirm failed for {OrderNumber}", order.OrderNumber); }
+                try
+                {
+                    await _odoo.ConfirmSaleOrderAsync(soId);
+
+                    // Immediately refresh the ordered products' stock so the storefront reflects
+                    // the new availability right away (no waiting for the periodic sync).
+                    var variantIds = await _db.OrderItems
+                        .Where(oi => oi.OrderId == order.Id)
+                        .Join(_db.Products, oi => oi.ProductId, p => p.Id, (oi, p) => p.OdooProductId)
+                        .Where(v => v != 0).Distinct().ToArrayAsync();
+                    if (variantIds.Length > 0)
+                        await _inventory.SyncProductInventoryAsync(variantIds);
+                }
+                catch (Exception ex) { _logger.LogError(ex, "Odoo confirm/sync failed for {OrderNumber}", order.OrderNumber); }
             }
         }
 

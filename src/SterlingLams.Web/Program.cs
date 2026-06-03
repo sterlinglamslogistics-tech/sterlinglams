@@ -158,6 +158,14 @@ if (Environment.GetEnvironmentVariable("ODOO_ROUTE_FIX") == "1")
     return; // one-shot command
 }
 
+// One-off: inspect the last order's Odoo + website stock. Runs only when ODOO_CHECK_LASTORDER=1.
+if (Environment.GetEnvironmentVariable("ODOO_CHECK_LASTORDER") == "1")
+{
+    var l = app.Services.GetRequiredService<ILogger<Program>>();
+    await SterlingLams.Web.Infrastructure.Odoo.OdooCheckLastOrder.RunAsync(app.Services, l);
+    return; // one-shot command
+}
+
 // One-off: cancel/delete test sale orders in Odoo. Runs only when ODOO_CLEANUP_TESTORDERS=1.
 if (Environment.GetEnvironmentVariable("ODOO_CLEANUP_TESTORDERS") == "1")
 {
