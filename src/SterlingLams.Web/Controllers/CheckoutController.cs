@@ -274,6 +274,14 @@ public class CheckoutController : Controller
             order.PaymentReference = refToVerify;
             order.PaymentProvider = _payment.ProviderName;
             await _db.SaveChangesAsync();
+
+            // Confirm in Odoo (reserves stock). Best-effort and gated by the toggle; also serves
+            // as the fallback when the provider webhook can't reach us (e.g. localhost).
+            if (_config.GetValue<bool>("Odoo:AutoConfirmOrders") && order.OdooSaleOrderId is int soId && soId > 0)
+            {
+                try { await _odoo.ConfirmSaleOrderAsync(soId); }
+                catch (Exception ex) { _logger.LogError(ex, "Odoo confirm failed for {OrderNumber}", order.OrderNumber); }
+            }
         }
 
         // Clear cart
