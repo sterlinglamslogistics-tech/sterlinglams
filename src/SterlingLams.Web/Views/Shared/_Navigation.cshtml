@@ -1,8 +1,3 @@
-@{
-    var cartCount = ViewBag.CartCount ?? 0;
-    var wishlistCount = ViewBag.WishlistCount ?? 0;
-}
-
 <header class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-neutral-100">
     <!-- Top bar -->
     <div class="bg-neutral-900 text-white text-xs text-center py-2 tracking-widest font-light">
@@ -43,12 +38,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                           d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
                 </svg>
-                @if (wishlistCount > 0)
-                {
-                    <span class="absolute -top-1.5 -right-1.5 bg-brand text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">
-                        @wishlistCount
-                    </span>
-                }
+                @await Component.InvokeAsync("WishlistCount")
             </a>
 
             <!-- Account -->
@@ -77,13 +67,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                           d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
                 </svg>
-                @if (cartCount > 0)
-                {
-                    <span id="cart-badge"
-                          class="absolute -top-1.5 -right-1.5 bg-brand text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">
-                        @cartCount
-                    </span>
-                }
+                @await Component.InvokeAsync("CartCount")
             </a>
 
             <!-- Mobile hamburger -->

@@ -204,11 +204,16 @@
         const body = new URLSearchParams({ productId, quantity: 1 });
         if (selectedVariantId) body.append('variantId', selectedVariantId);
 
+        const btn = document.getElementById('add-to-cart');
         const res = await fetch('/Cart/Add', { method: 'POST', body, headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '' } });
         const data = await res.json();
         if (data.success) {
-            const badge = document.getElementById('cart-badge');
-            if (badge) badge.textContent = data.cartCount;
+            if (window.updateCartBadge) window.updateCartBadge(data.cartCount);
+            const orig = btn.textContent;
+            btn.textContent = 'Added to Bag ✓';
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+        } else if (data.message) {
+            alert(data.message);
         }
     });
 

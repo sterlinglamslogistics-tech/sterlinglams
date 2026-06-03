@@ -158,6 +158,14 @@ if (Environment.GetEnvironmentVariable("ODOO_ROUTE_FIX") == "1")
     return; // one-shot command
 }
 
+// One-off: simulate checkout backend + show stock before/after. Runs only when ODOO_SIM_CHECKOUT=1.
+if (Environment.GetEnvironmentVariable("ODOO_SIM_CHECKOUT") == "1")
+{
+    var l = app.Services.GetRequiredService<ILogger<Program>>();
+    await SterlingLams.Web.Infrastructure.Odoo.OdooSimCheckout.RunAsync(app.Services, l);
+    return; // one-shot command
+}
+
 // One-off: create a test sale order in Odoo. Runs only when ODOO_TEST_ORDER=1.
 if (Environment.GetEnvironmentVariable("ODOO_TEST_ORDER") == "1")
 {
