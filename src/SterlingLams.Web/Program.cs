@@ -142,6 +142,14 @@ if (Environment.GetEnvironmentVariable("ODOO_DIAG") == "1")
     return; // one-shot command
 }
 
+// One-off: inspect product/warehouse routing. Runs only when ODOO_INSPECT=1.
+if (Environment.GetEnvironmentVariable("ODOO_INSPECT") == "1")
+{
+    var l = app.Services.GetRequiredService<ILogger<Program>>();
+    await SterlingLams.Web.Infrastructure.Odoo.OdooInspectRoutes.RunAsync(app.Services, l);
+    return; // one-shot command
+}
+
 // One-off: force direct delivery routing on store warehouses. Runs only when ODOO_ROUTE_FIX=1.
 if (Environment.GetEnvironmentVariable("ODOO_ROUTE_FIX") == "1")
 {

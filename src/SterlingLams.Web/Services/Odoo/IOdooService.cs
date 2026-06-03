@@ -28,6 +28,9 @@ public interface IOdooService
     Task<List<OdooProductVariant>> GetProductVariantsAsync(int[] odooTemplateIds);
     Task<List<OdooStockQuant>> GetStockQuantsAsync(int[] odooProductIds, int[] warehouseLocationIds);
     Task<Dictionary<int, Dictionary<int, int>>> GetInventoryByStoreAsync(int[] odooProductIds);
+    /// <summary>Finds a res.partner by email, or creates a customer partner. Returns its id.</summary>
+    Task<int> FindOrCreatePartnerAsync(string? email, string name);
+
     Task<int> CreateSaleOrderAsync(CreateSaleOrderRequest request);
     Task<bool> ConfirmSaleOrderAsync(int odooOrderId);
 }

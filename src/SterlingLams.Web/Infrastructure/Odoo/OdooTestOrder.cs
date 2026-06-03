@@ -21,9 +21,11 @@ public static class OdooTestOrder
         var products = await db.Products.Where(p => p.OdooProductId != 0).OrderBy(p => p.Id).Take(2).ToListAsync();
         if (products.Count == 0) { logger.LogWarning("ODOO_TEST_ORDER: no linked products"); return; }
 
+        var partnerId = await odoo.FindOrCreatePartnerAsync("test.customer@sterlinglams.com", "Test Customer");
+        logger.LogInformation("ODOO_TEST_ORDER: using customer partner id={Pid}", partnerId);
         var req = new CreateSaleOrderRequest
         {
-            OdooPartnerId = 1,
+            OdooPartnerId = partnerId,
             OdooWarehouseId = store.OdooWarehouseId,
             Note = $"Sterlin Glams Web Order: TEST-{DateTime.UtcNow:yyyyMMddHHmmss}",
             Lines = products.Select(p => new SaleOrderLine
@@ -56,10 +58,14 @@ public static class OdooTestOrder
             logger.LogInformation("ODOO_TEST_ORDER: confirmed={Result}, state={State}",
                 confirmed, after.Count > 0 ? after[0].GetValueOrDefault("state").ToString() : "?");
         }
+        catch (OdooException oe)
+        {
+            logger.LogWarning("ODOO_TEST_ORDER: order CREATED ok but auto-confirm failed: {Msg}\n--- debug ---\n{Debug}",
+                oe.Message, oe.Debug ?? "(none)");
+        }
         catch (Exception ex)
         {
-            logger.LogWarning("ODOO_TEST_ORDER: order CREATED ok but auto-confirm failed (Odoo routing config): {Msg}",
-                ex is OdooException oe ? oe.Message : ex.Message);
+            logger.LogWarning("ODOO_TEST_ORDER: order CREATED ok but auto-confirm failed: {Msg}", ex.Message);
         }
 
         logger.LogInformation("ODOO_TEST_ORDER: done. Check Odoo → Sales for this order.");

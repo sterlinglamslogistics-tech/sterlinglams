@@ -15,11 +15,11 @@ public class OdooSettings
     public int InventoryCacheTtlSeconds { get; set; } = 60;
 
     /// <summary>
-    /// When true, paid web orders are auto-confirmed in Odoo (creates the delivery).
-    /// Requires the Odoo warehouses' fulfillment routes to be configured. Default off:
-    /// orders arrive as quotations for staff to confirm.
+    /// When true, paid web orders are auto-confirmed in Odoo (creates the delivery and
+    /// reserves stock). Confirmation is best-effort — if it fails (e.g. out of stock), the
+    /// order simply stays as a quotation in Odoo and checkout is unaffected.
     /// </summary>
-    public bool AutoConfirmOrders { get; set; } = false;
+    public bool AutoConfirmOrders { get; set; } = true;
 }
 
 public class OdooService : IOdooService
@@ -243,6 +243,23 @@ public class OdooService : IOdooService
     }
 
     // ─── Sale Orders ─────────────────────────────────────────────────────────
+
+    public async Task<int> FindOrCreatePartnerAsync(string? email, string name)
+    {
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            var existing = await SearchReadAsync("res.partner",
+                new object[] { new object[] { "email", "=", email } }, new[] { "id" }, 1);
+            if (existing.Count > 0) return existing[0]["id"].GetInt32();
+        }
+
+        return await CreateAsync("res.partner", new()
+        {
+            ["name"] = string.IsNullOrWhiteSpace(name) ? (email ?? "Website Customer") : name,
+            ["email"] = email,
+            ["customer_rank"] = 1,
+        });
+    }
 
     public async Task<int> CreateSaleOrderAsync(CreateSaleOrderRequest request)
     {

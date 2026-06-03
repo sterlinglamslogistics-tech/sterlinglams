@@ -192,9 +192,10 @@ public class CheckoutController : Controller
                 .Where(p => cartProductIds.Contains(p.Id))
                 .ToDictionaryAsync(p => p.Id, p => p.OdooProductId);
 
+            var odooPartnerId = await _odoo.FindOrCreatePartnerAsync(user.Email, user.FullName);
             var odooOrderId = await _odoo.CreateSaleOrderAsync(new CreateSaleOrderRequest
             {
-                OdooPartnerId = 1, // default partner; customers don't have Odoo IDs yet
+                OdooPartnerId = odooPartnerId,
                 OdooWarehouseId = odooWarehouseId,
                 Lines = cart.Items
                     .Where(i => odooProductIdMap.ContainsKey(i.ProductId))
