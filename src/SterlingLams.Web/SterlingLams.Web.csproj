@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>SterlingLams.Web</RootNamespace>
     <AssemblyName>SterlingLams.Web</AssemblyName>
+    <UserSecretsId>9b164b1f-1614-47f6-8b6e-631f2b9de50c</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

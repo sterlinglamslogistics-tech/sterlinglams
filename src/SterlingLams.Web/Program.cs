@@ -134,6 +134,62 @@ app.MapControllers(); // API controllers (WebhooksController)
 // Seed roles, stores, and categories (all environments)
 await SterlingLams.Web.Infrastructure.SeedData.SeedAsync(app.Services);
 
+// One-off Odoo connectivity diagnostics. Runs only when ODOO_DIAG=1, then exits.
+if (Environment.GetEnvironmentVariable("ODOO_DIAG") == "1")
+{
+    var diagLogger = app.Services.GetRequiredService<ILogger<Program>>();
+    await SterlingLams.Web.Infrastructure.Odoo.OdooDiagnostics.RunAsync(app.Services, diagLogger);
+    return; // one-shot command
+}
+
+// One-off: force direct delivery routing on store warehouses. Runs only when ODOO_ROUTE_FIX=1.
+if (Environment.GetEnvironmentVariable("ODOO_ROUTE_FIX") == "1")
+{
+    var l = app.Services.GetRequiredService<ILogger<Program>>();
+    await SterlingLams.Web.Infrastructure.Odoo.OdooRouteFix.RunAsync(app.Services, l);
+    return; // one-shot command
+}
+
+// One-off: create a test sale order in Odoo. Runs only when ODOO_TEST_ORDER=1.
+if (Environment.GetEnvironmentVariable("ODOO_TEST_ORDER") == "1")
+{
+    var l = app.Services.GetRequiredService<ILogger<Program>>();
+    await SterlingLams.Web.Infrastructure.Odoo.OdooTestOrder.RunAsync(app.Services, l);
+    return; // one-shot command
+}
+
+// One-off: verify Odoo→website stock sync. Runs only when ODOO_VERIFY_SYNC=1.
+if (Environment.GetEnvironmentVariable("ODOO_VERIFY_SYNC") == "1")
+{
+    var l = app.Services.GetRequiredService<ILogger<Program>>();
+    await SterlingLams.Web.Infrastructure.Odoo.OdooVerifySync.RunAsync(app.Services, l);
+    return; // one-shot command
+}
+
+// One-off: seed Odoo with current per-store stock. Runs only when ODOO_PUSH_STOCK=1.
+if (Environment.GetEnvironmentVariable("ODOO_PUSH_STOCK") == "1")
+{
+    var l = app.Services.GetRequiredService<ILogger<Program>>();
+    await SterlingLams.Web.Infrastructure.Odoo.OdooPushStock.RunAsync(app.Services, l);
+    return; // one-shot command
+}
+
+// One-off: push website products into Odoo. Runs only when ODOO_EXPORT_PRODUCTS=1.
+if (Environment.GetEnvironmentVariable("ODOO_EXPORT_PRODUCTS") == "1")
+{
+    var l = app.Services.GetRequiredService<ILogger<Program>>();
+    await SterlingLams.Web.Infrastructure.Odoo.OdooExportProducts.RunAsync(app.Services, l);
+    return; // one-shot command
+}
+
+// One-off: provision Odoo warehouses for each store. Runs only when ODOO_PROVISION=1.
+if (Environment.GetEnvironmentVariable("ODOO_PROVISION") == "1")
+{
+    var l = app.Services.GetRequiredService<ILogger<Program>>();
+    await SterlingLams.Web.Infrastructure.Odoo.OdooProvisionStores.RunAsync(app.Services, l);
+    return; // one-shot command
+}
+
 // One-off category merge maintenance. Runs only when CATEGORY_MERGE is set, then exits.
 var mergeSpec = Environment.GetEnvironmentVariable("CATEGORY_MERGE");
 if (!string.IsNullOrWhiteSpace(mergeSpec))

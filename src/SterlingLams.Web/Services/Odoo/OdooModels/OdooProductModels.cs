@@ -31,8 +31,8 @@ public class OdooProduct
     [JsonPropertyName("image_1920")]
     public object? Image { get; set; }
 
-    public string? Sku => DefaultCode is string s && s != "false" ? s : null;
-    public string? CategoryName => CategoryId.Length > 1 ? CategoryId[1]?.ToString() : null;
+    public string? Sku { get { var s = OdooValue.AsString(DefaultCode); return string.IsNullOrEmpty(s) || s == "false" ? null : s; } }
+    public string? CategoryName => CategoryId.Length > 1 ? OdooValue.AsString(CategoryId[1]) : null;
 }
 
 public class OdooStockQuant
@@ -52,9 +52,29 @@ public class OdooStockQuant
     [JsonPropertyName("reserved_quantity")]
     public decimal ReservedQuantity { get; set; }
 
-    public int ProductOdooId => ProductId.Length > 0 ? Convert.ToInt32(ProductId[0]) : 0;
-    public int LocationOdooId => LocationId.Length > 0 ? Convert.ToInt32(LocationId[0]) : 0;
-    public string LocationName => LocationId.Length > 1 ? LocationId[1]?.ToString() ?? "" : "";
+    public int ProductOdooId => ProductId.Length > 0 ? OdooValue.AsInt(ProductId[0]) : 0;
+    public int LocationOdooId => LocationId.Length > 0 ? OdooValue.AsInt(LocationId[0]) : 0;
+    public string LocationName => LocationId.Length > 1 ? OdooValue.AsString(LocationId[1]) : "";
+}
+
+/// <summary>Helpers for Odoo values that System.Text.Json deserializes into JsonElement.</summary>
+internal static class OdooValue
+{
+    public static int AsInt(object? o) => o switch
+    {
+        System.Text.Json.JsonElement je => je.ValueKind == System.Text.Json.JsonValueKind.Number
+            ? je.GetInt32()
+            : int.TryParse(je.ToString(), out var n) ? n : 0,
+        IConvertible c => Convert.ToInt32(c),
+        _ => 0
+    };
+
+    public static string AsString(object? o) => o switch
+    {
+        System.Text.Json.JsonElement je => je.ValueKind == System.Text.Json.JsonValueKind.String
+            ? je.GetString() ?? "" : je.ToString(),
+        _ => o?.ToString() ?? ""
+    };
 }
 
 public class OdooProductVariant
@@ -77,8 +97,8 @@ public class OdooProductVariant
     [JsonPropertyName("active")]
     public bool Active { get; set; } = true;
 
-    public int TemplateId => ProductTmplId.Length > 0 ? Convert.ToInt32(ProductTmplId[0]) : 0;
-    public string? Sku => DefaultCode is string s && s != "false" ? s : null;
+    public int TemplateId => ProductTmplId.Length > 0 ? OdooValue.AsInt(ProductTmplId[0]) : 0;
+    public string? Sku { get { var s = OdooValue.AsString(DefaultCode); return string.IsNullOrEmpty(s) || s == "false" ? null : s; } }
 }
 
 public class OdooSaleOrder

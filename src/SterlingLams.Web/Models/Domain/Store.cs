@@ -3,7 +3,12 @@ namespace SterlingLams.Web.Models.Domain;
 public class Store
 {
     public int Id { get; set; }
+
+    /// <summary>Odoo stock.warehouse id — used when creating sale orders for this store.</summary>
     public int OdooWarehouseId { get; set; }
+
+    /// <summary>Odoo stock.location id (the warehouse's lot_stock_id) — used for stock-quant sync.</summary>
+    public int OdooStockLocationId { get; set; }
 
     public string Name { get; set; } = string.Empty;
     public string Slug { get; set; } = string.Empty;

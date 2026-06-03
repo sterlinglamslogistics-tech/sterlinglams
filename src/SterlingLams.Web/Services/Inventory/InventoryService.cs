@@ -37,6 +37,7 @@ public class InventoryService : IInventoryService
     }
 
     /// <summary>Returns storeId → availableQty for a given Odoo product.</summary>
+    /// <summary>Returns storeId → available qty for a single Odoo product (variant) id.</summary>
     public async Task<Dictionary<int, int>> GetStoreInventoryForProductAsync(int odooProductId)
     {
         var cacheKey = $"inventory:product:{odooProductId}";
@@ -44,59 +45,74 @@ public class InventoryService : IInventoryService
         if (_cache.TryGetValue(cacheKey, out Dictionary<int, int>? cached) && cached != null)
             return cached;
 
-        var inventoryMap = await _odoo.GetInventoryByStoreAsync(new[] { odooProductId });
-        var result = inventoryMap.TryGetValue(odooProductId, out var storeMap) ? storeMap : new Dictionary<int, int>();
+        var storeByLocation = await _db.Stores
+            .Where(s => s.OdooStockLocationId != 0)
+            .ToDictionaryAsync(s => s.OdooStockLocationId, s => s.Id);
+
+        var result = new Dictionary<int, int>();
+        if (storeByLocation.Count > 0)
+        {
+            var quants = await _odoo.GetStockQuantsAsync(new[] { odooProductId }, storeByLocation.Keys.ToArray());
+            foreach (var q in quants)
+            {
+                if (!storeByLocation.TryGetValue(q.LocationOdooId, out var storeId)) continue;
+                var available = (int)Math.Max(0, q.Quantity - q.ReservedQuantity);
+                result[storeId] = result.TryGetValue(storeId, out var cur) ? cur + available : available;
+            }
+        }
 
         _cache.Set(cacheKey, result, TimeSpan.FromSeconds(_odooSettings.InventoryCacheTtlSeconds));
         return result;
     }
 
-    /// <summary>Syncs stock from Odoo into the local DB for given product IDs.</summary>
+    /// <summary>Syncs stock from Odoo (per store location) into the local StoreInventory.</summary>
     public async Task SyncProductInventoryAsync(int[] odooProductIds)
     {
         try
         {
-            var inventoryMap = await _odoo.GetInventoryByStoreAsync(odooProductIds);
+            var stores = await _db.Stores.Where(s => s.OdooStockLocationId != 0).ToListAsync();
+            if (stores.Count == 0) return;
+            var storeByLocation = stores.ToDictionary(s => s.OdooStockLocationId, s => s);
 
-            var stores = await _db.Stores.ToListAsync();
             var products = await _db.Products
                 .Where(p => odooProductIds.Contains(p.OdooProductId))
                 .ToListAsync();
+            var productByOdoo = products.ToDictionary(p => p.OdooProductId, p => p);
 
-            foreach (var (odooProductId, storeStockMap) in inventoryMap)
+            var quants = await _odoo.GetStockQuantsAsync(odooProductIds, storeByLocation.Keys.ToArray());
+
+            foreach (var q in quants)
             {
-                var product = products.FirstOrDefault(p => p.OdooProductId == odooProductId);
-                if (product == null) continue;
+                if (!productByOdoo.TryGetValue(q.ProductOdooId, out var product)) continue;
+                if (!storeByLocation.TryGetValue(q.LocationOdooId, out var store)) continue;
 
-                foreach (var (odooWarehouseId, qty) in storeStockMap)
+                var onHand = (int)Math.Max(0, q.Quantity);
+                var reserved = (int)Math.Max(0, q.ReservedQuantity);
+
+                var existing = await _db.StoreInventories
+                    .FirstOrDefaultAsync(si => si.ProductId == product.Id && si.StoreId == store.Id);
+
+                if (existing != null)
                 {
-                    var store = stores.FirstOrDefault(s => s.OdooWarehouseId == odooWarehouseId);
-                    if (store == null) continue;
-
-                    var existing = await _db.StoreInventories
-                        .FirstOrDefaultAsync(si => si.ProductId == product.Id && si.StoreId == store.Id);
-
-                    if (existing != null)
+                    existing.QuantityOnHand = onHand;
+                    existing.QuantityReserved = reserved;
+                    existing.LastSyncedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    _db.StoreInventories.Add(new StoreInventory
                     {
-                        existing.QuantityOnHand = qty;
-                        existing.LastSyncedAt = DateTime.UtcNow;
-                    }
-                    else
-                    {
-                        _db.StoreInventories.Add(new StoreInventory
-                        {
-                            ProductId = product.Id,
-                            StoreId = store.Id,
-                            QuantityOnHand = qty,
-                            LastSyncedAt = DateTime.UtcNow
-                        });
-                    }
+                        ProductId = product.Id,
+                        StoreId = store.Id,
+                        QuantityOnHand = onHand,
+                        QuantityReserved = reserved,
+                        LastSyncedAt = DateTime.UtcNow
+                    });
                 }
             }
 
             await _db.SaveChangesAsync();
 
-            // Invalidate cached inventory for all synced products
             foreach (var id in odooProductIds)
                 _cache.Remove($"inventory:product:{id}");
 

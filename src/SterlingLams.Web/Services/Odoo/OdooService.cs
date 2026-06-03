@@ -13,6 +13,13 @@ public class OdooSettings
     public string ApiKey { get; set; } = string.Empty;
     public Dictionary<string, int> Stores { get; set; } = new();
     public int InventoryCacheTtlSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// When true, paid web orders are auto-confirmed in Odoo (creates the delivery).
+    /// Requires the Odoo warehouses' fulfillment routes to be configured. Default off:
+    /// orders arrive as quotations for staff to confirm.
+    /// </summary>
+    public bool AutoConfirmOrders { get; set; } = false;
 }
 
 public class OdooService : IOdooService
@@ -117,6 +124,30 @@ public class OdooService : IOdooService
 
         return rpc.Result!;
     }
+
+    // ─── Generic / diagnostics ─────────────────────────────────────────────────
+
+    public Task<int> AuthenticateAsync() => GetUidAsync();
+
+    public async Task<List<Dictionary<string, JsonElement>>> SearchReadAsync(
+        string model, object[] domain, string[] fields, int limit = 0)
+    {
+        object kwargs = limit > 0 ? new { fields, limit } : new { fields };
+        return await ExecuteKwAsync<List<Dictionary<string, JsonElement>>>(
+            model, "search_read", new object[] { domain }, kwargs);
+    }
+
+    public Task<int> CreateAsync(string model, Dictionary<string, object?> values)
+        => ExecuteKwAsync<int>(model, "create", new object[] { values });
+
+    public Task<List<int>> CreateManyAsync(string model, IEnumerable<Dictionary<string, object?>> records, object? context = null)
+        => ExecuteKwAsync<List<int>>(model, "create", new object[] { records.ToArray() }, context == null ? null : new { context });
+
+    public Task<bool> WriteAsync(string model, int[] ids, Dictionary<string, object?> values, object? context = null)
+        => ExecuteKwAsync<bool>(model, "write", new object[] { ids, values }, context == null ? null : new { context });
+
+    public Task<JsonElement> ExecuteAsync(string model, string method, object[] args, object? context = null)
+        => ExecuteKwAsync<JsonElement>(model, method, args, context == null ? null : new { context });
 
     // ─── Products ────────────────────────────────────────────────────────────
 

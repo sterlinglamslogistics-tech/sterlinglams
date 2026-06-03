@@ -4,6 +4,25 @@ namespace SterlingLams.Web.Services.Odoo;
 
 public interface IOdooService
 {
+    /// <summary>Authenticates and returns the Odoo user id (uid). Throws on failure.</summary>
+    Task<int> AuthenticateAsync();
+
+    /// <summary>Generic search_read for diagnostics/linking. Returns rows as field→JSON maps.</summary>
+    Task<List<Dictionary<string, System.Text.Json.JsonElement>>> SearchReadAsync(
+        string model, object[] domain, string[] fields, int limit = 0);
+
+    /// <summary>Creates a single record, returns its new id.</summary>
+    Task<int> CreateAsync(string model, Dictionary<string, object?> values);
+
+    /// <summary>Creates many records in one call, returns their new ids (order preserved). Optional Odoo context.</summary>
+    Task<List<int>> CreateManyAsync(string model, IEnumerable<Dictionary<string, object?>> records, object? context = null);
+
+    /// <summary>Writes values to the given record ids. Optional Odoo context.</summary>
+    Task<bool> WriteAsync(string model, int[] ids, Dictionary<string, object?> values, object? context = null);
+
+    /// <summary>Generic model method call (e.g. action_apply_inventory); returns the raw result.</summary>
+    Task<System.Text.Json.JsonElement> ExecuteAsync(string model, string method, object[] args, object? context = null);
+
     Task<List<OdooProduct>> GetProductsAsync(int offset = 0, int limit = 100);
     Task<OdooProduct?> GetProductByIdAsync(int odooProductId);
     Task<List<OdooProductVariant>> GetProductVariantsAsync(int[] odooTemplateIds);
