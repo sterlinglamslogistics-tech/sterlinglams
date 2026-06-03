@@ -55,10 +55,19 @@
                        class="w-full border border-neutral-200 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-neutral-400" />
             </div>
 
-            <div>
-                <label asp-for="OdooWarehouseId" class="block text-xs text-neutral-500 mb-1">Odoo Warehouse ID</label>
-                <input asp-for="OdooWarehouseId" type="number"
-                       class="w-full border border-neutral-200 rounded-sm px-3 py-2 text-sm font-mono focus:outline-none focus:border-neutral-400" />
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label asp-for="OdooWarehouseId" class="block text-xs text-neutral-500 mb-1">Odoo Warehouse ID</label>
+                    <input asp-for="OdooWarehouseId" type="number"
+                           class="w-full border border-neutral-200 rounded-sm px-3 py-2 text-sm font-mono focus:outline-none focus:border-neutral-400" />
+                    <p class="text-[10px] text-neutral-400 mt-1">Used for sale orders</p>
+                </div>
+                <div>
+                    <label asp-for="OdooStockLocationId" class="block text-xs text-neutral-500 mb-1">Odoo Stock Location ID</label>
+                    <input asp-for="OdooStockLocationId" type="number"
+                           class="w-full border border-neutral-200 rounded-sm px-3 py-2 text-sm font-mono focus:outline-none focus:border-neutral-400" />
+                    <p class="text-[10px] text-neutral-400 mt-1">Used for stock sync (warehouse's lot_stock_id)</p>
+                </div>
             </div>
 
             <label class="flex items-center gap-2 text-sm text-neutral-600 cursor-pointer">

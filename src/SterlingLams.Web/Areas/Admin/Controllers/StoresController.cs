@@ -43,6 +43,7 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
                 Email = store.Email,
                 OpeningHours = store.OpeningHours,
                 OdooWarehouseId = store.OdooWarehouseId,
+                OdooStockLocationId = store.OdooStockLocationId,
                 IsActive = store.IsActive
             };
 
@@ -66,6 +67,7 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
             store.Email = vm.Email?.Trim();
             store.OpeningHours = vm.OpeningHours?.Trim();
             store.OdooWarehouseId = vm.OdooWarehouseId;
+            store.OdooStockLocationId = vm.OdooStockLocationId;
             store.IsActive = vm.IsActive;
 
             await _db.SaveChangesAsync();

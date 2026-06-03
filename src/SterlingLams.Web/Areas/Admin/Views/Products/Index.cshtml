@@ -16,16 +16,7 @@
     </form>
 
     <div class="flex gap-2">
-        <!-- Import from Odoo (full product catalog upsert) -->
-        <form asp-area="Admin" asp-controller="Products" asp-action="ImportFromOdoo" method="post"
-              onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Importing…';">
-            @Html.AntiForgeryToken()
-            <button type="submit"
-                    class="px-4 py-2 border border-amber-300 text-amber-700 text-xs rounded-sm hover:bg-amber-50 transition-colors">
-                ↓ Import from Odoo
-            </button>
-        </form>
-        <!-- Sync inventory quantities only -->
+        <!-- Sync stock quantities from Odoo (Odoo is the inventory master) -->
         <form asp-area="Admin" asp-controller="Products" asp-action="SyncFromOdoo" method="post"
               onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Syncing…';">
             @Html.AntiForgeryToken()
@@ -57,7 +48,7 @@
         <tbody class="divide-y divide-neutral-50">
             @if (!Model.Products.Any())
             {
-                <tr><td colspan="6" class="px-6 py-12 text-center text-neutral-400 text-sm">No products found. Click <strong>↓ Import from Odoo</strong> to import your catalog.</td></tr>
+                <tr><td colspan="6" class="px-6 py-12 text-center text-neutral-400 text-sm">No products found. Click <strong>+ New Product</strong> to add one.</td></tr>
             }
             @foreach (var p in Model.Products)
             {
@@ -110,17 +101,6 @@
     </table>
 </div>
 
-<!-- Pagination -->
-@if (Model.TotalPages > 1)
-{
-    <div class="flex items-center justify-end gap-2 mt-4">
-        @for (int p = 1; p <= Model.TotalPages; p++)
-        {
-            <a asp-area="Admin" asp-controller="Products" asp-action="Index"
-               asp-route-page="@p" asp-route-q="@Model.SearchQuery"
-               class="px-3 py-1.5 text-xs rounded-sm border transition-colors @(p == Model.CurrentPage ? "bg-neutral-900 text-white border-neutral-900" : "border-neutral-200 text-neutral-600 hover:border-neutral-400")">
-                @p
-            </a>
-        }
-    </div>
-}
+@await Html.PartialAsync("_Pager", new SterlingLams.Web.Areas.Admin.ViewModels.PagerModel(
+    Model.CurrentPage, Model.TotalPages, "Index", "Products",
+    new() { ["q"] = Model.SearchQuery }))

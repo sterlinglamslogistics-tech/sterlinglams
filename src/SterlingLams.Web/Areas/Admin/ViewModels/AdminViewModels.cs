@@ -21,6 +21,7 @@ namespace SterlingLams.Web.Areas.Admin.ViewModels
 
     public class RecentOrderRow
     {
+        public int Id { get; set; }
         public string OrderNumber { get; set; } = "";
         public string CustomerName { get; set; } = "";
         public decimal Total { get; set; }
@@ -69,6 +70,9 @@ namespace SterlingLams.Web.Areas.Admin.ViewModels
         };
     }
 
+    // ─── Shared pager ───────────────────────────────────────────────────────
+    public record PagerModel(int CurrentPage, int TotalPages, string Action, string Controller, Dictionary<string, string> RouteValues);
+
     // ─── Products ─────────────────────────────────────────────────────────
     public class AdminProductListViewModel
     {
@@ -112,23 +116,25 @@ namespace SterlingLams.Web.Areas.Admin.ViewModels
     // ─── Inventory ────────────────────────────────────────────────────────
     public class AdminInventoryViewModel
     {
-        public List<InventoryStoreSection> Stores { get; set; } = new();
+        public List<Store> Stores { get; set; } = new();   // for the store filter
+        public int? SelectedStoreId { get; set; }
+        public string SearchQuery { get; set; } = "";
+        public List<InventoryProductRow> Rows { get; set; } = new();
+        public int CurrentPage { get; set; } = 1;
+        public int TotalPages { get; set; } = 1;
         public DateTime? LastSyncedAt { get; set; }
-    }
-
-    public class InventoryStoreSection
-    {
-        public Store Store { get; set; } = null!;
-        public List<InventoryProductRow> Products { get; set; } = new();
     }
 
     public class InventoryProductRow
     {
         public int ProductId { get; set; }
         public string ProductName { get; set; } = "";
+        public string StoreName { get; set; } = "";
         public string Sku { get; set; } = "";
         public int QuantityOnHand { get; set; }
-        public bool IsLowStock => QuantityOnHand < 3;
+        public int QuantityReserved { get; set; }
+        public int Available => Math.Max(0, QuantityOnHand - QuantityReserved);
+        public bool IsLowStock => Available < 3;
     }
 
     // ─── Stores ───────────────────────────────────────────────────────────
@@ -143,6 +149,7 @@ namespace SterlingLams.Web.Areas.Admin.ViewModels
         public string? Email { get; set; }
         public string? OpeningHours { get; set; }
         public int OdooWarehouseId { get; set; }
+        public int OdooStockLocationId { get; set; }
         public bool IsActive { get; set; } = true;
     }
 }

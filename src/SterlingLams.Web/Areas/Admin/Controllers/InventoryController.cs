@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
@@ -12,51 +11,64 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
 {
     public class InventoryController : AdminBaseController
     {
-        private readonly ApplicationDbContext _db;
-        private readonly IInventoryService _inventory;
+        private const int PageSize = 50;
 
-        public InventoryController(ApplicationDbContext db, IInventoryService inventory)
+        private readonly ApplicationDbContext _db;
+        private readonly IServiceScopeFactory _scopeFactory;
+        private readonly ILogger<InventoryController> _logger;
+
+        public InventoryController(ApplicationDbContext db, IServiceScopeFactory scopeFactory, ILogger<InventoryController> logger)
         {
             _db = db;
-            _inventory = inventory;
+            _scopeFactory = scopeFactory;
+            _logger = logger;
         }
 
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(int? storeId, string q = "", int page = 1)
         {
             ViewData["Title"] = "Inventory";
 
-            var stores = await _db.Stores
-                .Where(s => s.IsActive)
-                .OrderBy(s => s.Name)
+            var stores = await _db.Stores.Where(s => s.IsActive).OrderBy(s => s.Name).ToListAsync();
+            var selectedStoreId = storeId ?? stores.FirstOrDefault()?.Id;
+            if (page < 1) page = 1;
+
+            var query = _db.StoreInventories
+                .Where(si => si.Product.IsActive);
+
+            if (selectedStoreId.HasValue)
+                query = query.Where(si => si.StoreId == selectedStoreId.Value);
+
+            if (!string.IsNullOrWhiteSpace(q))
+                query = query.Where(si =>
+                    EF.Functions.ILike(si.Product.Name, $"%{q}%") ||
+                    (si.Product.Sku != null && EF.Functions.ILike(si.Product.Sku, $"%{q}%")));
+
+            var total = await query.CountAsync();
+            var rows = await query
+                .OrderBy(si => si.Product.Name)
+                .Skip((page - 1) * PageSize)
+                .Take(PageSize)
+                .Select(si => new InventoryProductRow
+                {
+                    ProductId = si.ProductId,
+                    ProductName = si.Product.Name,
+                    StoreName = si.Store.Name,
+                    Sku = si.Product.Sku ?? "",
+                    QuantityOnHand = si.QuantityOnHand,
+                    QuantityReserved = si.QuantityReserved
+                })
                 .ToListAsync();
 
-            var allInventory = await _db.StoreInventories
-                .Include(si => si.Product)
-                .Where(si => si.Product.IsActive)
-                .ToListAsync();
-
-            var sections = stores.Select(store => new InventoryStoreSection
-            {
-                Store = store,
-                Products = allInventory
-                    .Where(si => si.StoreId == store.Id)
-                    .OrderBy(si => si.Product.Name)
-                    .Select(si => new InventoryProductRow
-                    {
-                        ProductId = si.ProductId,
-                        ProductName = si.Product.Name,
-                        Sku = si.Product.Sku ?? "",
-                        QuantityOnHand = si.QuantityOnHand
-                    })
-                    .ToList()
-            }).ToList();
-
-            var lastSync = await _db.StoreInventories
-                .MaxAsync(si => (DateTime?)si.LastSyncedAt);
+            var lastSync = await _db.StoreInventories.MaxAsync(si => (DateTime?)si.LastSyncedAt);
 
             var vm = new AdminInventoryViewModel
             {
-                Stores = sections,
+                Stores = stores,
+                SelectedStoreId = selectedStoreId,
+                SearchQuery = q,
+                Rows = rows,
+                CurrentPage = page,
+                TotalPages = (int)Math.Ceiling(total / (double)PageSize),
                 LastSyncedAt = lastSync
             };
 
@@ -65,18 +77,19 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Sync()
+        public IActionResult Sync()
         {
-            try
+            // Stock sync hits Odoo for ~1k products; run it in the background so the
+            // request returns immediately instead of timing out.
+            _ = Task.Run(async () =>
             {
-                await _inventory.SyncAllAsync();
-                TempData["Success"] = "Inventory synced from Odoo.";
-            }
-            catch (Exception ex)
-            {
-                TempData["Error"] = $"Sync failed: {ex.Message}";
-            }
+                using var scope = _scopeFactory.CreateScope();
+                var inventory = scope.ServiceProvider.GetRequiredService<IInventoryService>();
+                try { await inventory.SyncAllAsync(); }
+                catch (Exception ex) { _logger.LogError(ex, "Background inventory sync failed"); }
+            });
 
+            TempData["Success"] = "Inventory sync started in the background. Refresh in a moment to see updated quantities.";
             return RedirectToAction(nameof(Index));
         }
     }

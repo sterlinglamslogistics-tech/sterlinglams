@@ -1,0 +1,60 @@
+@model SterlingLams.Web.Areas.Admin.ViewModels.PagerModel
+@{
+    int cur = Model.CurrentPage;
+    int total = Model.TotalPages;
+    int start = Math.Max(1, cur - 2);
+    int end = Math.Min(total, cur + 2);
+
+    Dictionary<string, string> Rv(int p)
+    {
+        var d = new Dictionary<string, string>(Model.RouteValues) { ["page"] = p.ToString() };
+        return d;
+    }
+
+    string Cls(bool active) => active
+        ? "bg-neutral-900 text-white border-neutral-900"
+        : "border-neutral-200 text-neutral-600 hover:border-neutral-400";
+}
+
+@if (total > 1)
+{
+    <div class="flex items-center justify-end gap-1 mt-4 flex-wrap">
+        @if (cur > 1)
+        {
+            <a asp-area="Admin" asp-controller="@Model.Controller" asp-action="@Model.Action" asp-all-route-data="Rv(cur - 1)"
+               class="px-3 py-1.5 text-xs rounded-sm border @Cls(false)">‹ Prev</a>
+        }
+
+        @if (start > 1)
+        {
+            <a asp-area="Admin" asp-controller="@Model.Controller" asp-action="@Model.Action" asp-all-route-data="Rv(1)"
+               class="px-3 py-1.5 text-xs rounded-sm border @Cls(false)">1</a>
+            @if (start > 2)
+            {
+                <span class="px-1 text-xs text-neutral-300">…</span>
+            }
+        }
+
+        @for (int p = start; p <= end; p++)
+        {
+            <a asp-area="Admin" asp-controller="@Model.Controller" asp-action="@Model.Action" asp-all-route-data="Rv(p)"
+               class="px-3 py-1.5 text-xs rounded-sm border @Cls(p == cur)">@p</a>
+        }
+
+        @if (end < total)
+        {
+            @if (end < total - 1)
+            {
+                <span class="px-1 text-xs text-neutral-300">…</span>
+            }
+            <a asp-area="Admin" asp-controller="@Model.Controller" asp-action="@Model.Action" asp-all-route-data="Rv(total)"
+               class="px-3 py-1.5 text-xs rounded-sm border @Cls(false)">@total</a>
+        }
+
+        @if (cur < total)
+        {
+            <a asp-area="Admin" asp-controller="@Model.Controller" asp-action="@Model.Action" asp-all-route-data="Rv(cur + 1)"
+               class="px-3 py-1.5 text-xs rounded-sm border @Cls(false)">Next ›</a>
+        }
+    </div>
+}

@@ -17,23 +17,23 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
     public class ProductsController : AdminBaseController
     {
         private readonly ApplicationDbContext _db;
-        private readonly IInventoryService _inventory;
         private readonly IProductImportService _importer;
         private readonly IWebHostEnvironment _env;
+        private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<ProductsController> _logger;
         private const int PageSize = 30;
 
         public ProductsController(
             ApplicationDbContext db,
-            IInventoryService inventory,
             IProductImportService importer,
             IWebHostEnvironment env,
+            IServiceScopeFactory scopeFactory,
             ILogger<ProductsController> logger)
         {
             _db = db;
-            _inventory = inventory;
             _importer = importer;
             _env = env;
+            _scopeFactory = scopeFactory;
             _logger = logger;
         }
 
@@ -245,18 +245,18 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SyncFromOdoo()
+        public IActionResult SyncFromOdoo()
         {
-            try
+            // Runs against ~1k products; do it in the background so the request returns fast.
+            _ = Task.Run(async () =>
             {
-                await _inventory.SyncAllAsync();
-                TempData["Success"] = "Odoo inventory sync completed successfully.";
-            }
-            catch (Exception ex)
-            {
-                TempData["Error"] = $"Inventory sync failed: {ex.Message}";
-            }
+                using var scope = _scopeFactory.CreateScope();
+                var inventory = scope.ServiceProvider.GetRequiredService<IInventoryService>();
+                try { await inventory.SyncAllAsync(); }
+                catch (Exception ex) { _logger.LogError(ex, "Background inventory sync failed"); }
+            });
 
+            TempData["Success"] = "Inventory sync started in the background. Refresh in a moment to see updated quantities.";
             return RedirectToAction(nameof(Index));
         }
 
