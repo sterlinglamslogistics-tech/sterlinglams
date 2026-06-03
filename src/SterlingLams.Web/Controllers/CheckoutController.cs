@@ -45,53 +45,64 @@ public class CheckoutController : Controller
         var cart = GetCart();
         if (cart.IsEmpty) return RedirectToAction("Index", "Cart");
 
-        var stores = await _db.Stores.Where(s => s.IsActive).ToListAsync();
-        var user = await _userManager.GetUserAsync(User);
+        var vm = new CheckoutViewModel { FulfillmentType = FulfillmentChoice.Delivery };
+        await PopulateCheckoutVmAsync(vm);
+        return View(vm);
+    }
 
-        // Check which cart items are available in each store
+    /// <summary>Fills the non-posted parts of the checkout VM (cart, totals, stores, keys)
+    /// from session + DB. Call before rendering the checkout view.</summary>
+    private async Task PopulateCheckoutVmAsync(CheckoutViewModel vm)
+    {
+        var cart = GetCart();
+        vm.Cart = cart;
+        vm.Subtotal = cart.Subtotal;
+        vm.DeliveryFee = ComputeDeliveryFee(vm.FulfillmentType, vm.DeliveryAddress?.State);
+        vm.PaystackPublicKey = _config["Payment:Paystack:PublicKey"];
+
+        var stores = await _db.Stores.Where(s => s.IsActive).ToListAsync();
         var cartProductIds = cart.Items.Select(i => i.ProductId).ToList();
         var inventories = await _db.StoreInventories
             .Where(si => cartProductIds.Contains(si.ProductId))
             .ToListAsync();
 
-        var storeAvailability = stores.ToDictionary(
-            s => s.Id,
-            s => cart.Items.All(item =>
-            {
-                var inv = inventories.FirstOrDefault(i => i.ProductId == item.ProductId && i.StoreId == s.Id);
-                return inv != null && inv.AvailableQuantity >= item.Quantity;
-            })
-        );
-
-        var vm = new CheckoutViewModel
+        vm.AvailableStores = stores.Select(s => new StorePickupOptionViewModel
         {
-            Cart = cart,
-            Subtotal = cart.Subtotal,
-            DeliveryFee = 0,
-            PaystackPublicKey = _config["Payment:Paystack:PublicKey"],
-            AvailableStores = stores.Select(s => new StorePickupOptionViewModel
-            {
-                StoreId = s.Id,
-                StoreName = s.Name,
-                Address = s.Address,
-                OpeningHours = s.OpeningHours,
-                AllItemsAvailable = storeAvailability.TryGetValue(s.Id, out var avail) && avail
-            }).ToList()
-        };
-
-        return View(vm);
+            StoreId = s.Id,
+            StoreName = s.Name,
+            Address = s.Address,
+            OpeningHours = s.OpeningHours,
+            AllItemsAvailable = cart.Items.All(item => inventories
+                .Where(i => i.ProductId == item.ProductId && i.StoreId == s.Id)
+                .Sum(i => i.AvailableQuantity) >= item.Quantity)
+        }).ToList();
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> PlaceOrder(CheckoutViewModel vm)
     {
-        if (!ModelState.IsValid) return View("Index", vm);
-
         var cart = GetCart();
         if (cart.IsEmpty) return RedirectToAction("Index", "Cart");
 
         var user = await _userManager.GetUserAsync(User);
         if (user == null) return Challenge();
+
+        // Validation depends on fulfilment type: delivery needs an address; pickup needs a store.
+        if (vm.FulfillmentType == FulfillmentChoice.StorePickup)
+        {
+            // Delivery address fields are [Required] but irrelevant for pickup — drop their errors.
+            foreach (var key in ModelState.Keys.Where(k => k.StartsWith("DeliveryAddress")).ToList())
+                ModelState.Remove(key);
+            if (!vm.SelectedStoreId.HasValue)
+                ModelState.AddModelError(nameof(vm.SelectedStoreId), "Please select a store for pickup.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            await PopulateCheckoutVmAsync(vm);
+            return View("Index", vm);
+        }
 
         // Re-validate stock at order time to prevent overselling (the availability shown
         // on the checkout page is only a snapshot and may be stale by now).
@@ -233,6 +244,7 @@ public class CheckoutController : Controller
         {
             _logger.LogError("Payment initiation failed for order {OrderNumber}: {Error}", orderNumber, result.ErrorMessage);
             ModelState.AddModelError("", "Payment could not be initiated. Please try again.");
+            await PopulateCheckoutVmAsync(vm);
             return View("Index", vm);
         }
 
