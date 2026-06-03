@@ -158,6 +158,22 @@ if (Environment.GetEnvironmentVariable("ODOO_ROUTE_FIX") == "1")
     return; // one-shot command
 }
 
+// One-off: cancel/delete test sale orders in Odoo. Runs only when ODOO_CLEANUP_TESTORDERS=1.
+if (Environment.GetEnvironmentVariable("ODOO_CLEANUP_TESTORDERS") == "1")
+{
+    var l = app.Services.GetRequiredService<ILogger<Program>>();
+    await SterlingLams.Web.Infrastructure.Odoo.OdooCleanupTestOrders.RunAsync(app.Services, l);
+    return; // one-shot command
+}
+
+// One-off: verify payment provider initiate. Runs only when PAYMENT_INIT_TEST=1.
+if (Environment.GetEnvironmentVariable("PAYMENT_INIT_TEST") == "1")
+{
+    var l = app.Services.GetRequiredService<ILogger<Program>>();
+    await SterlingLams.Web.Infrastructure.Odoo.PaymentInitTest.RunAsync(app.Services, l);
+    return; // one-shot command
+}
+
 // One-off: simulate checkout backend + show stock before/after. Runs only when ODOO_SIM_CHECKOUT=1.
 if (Environment.GetEnvironmentVariable("ODOO_SIM_CHECKOUT") == "1")
 {
