@@ -295,6 +295,16 @@ public class OdooService : IOdooService
         );
         return result;
     }
+
+    public async Task<bool> CancelSaleOrderAsync(int odooOrderId)
+    {
+        var result = await ExecuteKwAsync<bool>(
+            "sale.order",
+            "action_cancel",
+            new object[] { new[] { odooOrderId } }
+        );
+        return result;
+    }
 }
 
 public class OdooException : Exception

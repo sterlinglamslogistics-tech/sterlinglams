@@ -17,7 +17,6 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
     public class ProductsController : AdminBaseController
     {
         private readonly ApplicationDbContext _db;
-        private readonly IProductImportService _importer;
         private readonly IWebHostEnvironment _env;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<ProductsController> _logger;
@@ -25,13 +24,11 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
 
         public ProductsController(
             ApplicationDbContext db,
-            IProductImportService importer,
             IWebHostEnvironment env,
             IServiceScopeFactory scopeFactory,
             ILogger<ProductsController> logger)
         {
             _db = db;
-            _importer = importer;
             _env = env;
             _scopeFactory = scopeFactory;
             _logger = logger;
@@ -257,28 +254,6 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
             });
 
             TempData["Success"] = "Inventory sync started in the background. Refresh in a moment to see updated quantities.";
-            return RedirectToAction(nameof(Index));
-        }
-
-        /// <summary>
-        /// Import all products from Odoo into local database (upsert by OdooProductId).
-        /// </summary>
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ImportFromOdoo()
-        {
-            try
-            {
-                var result = await _importer.ImportAllFromOdooAsync();
-                TempData[result.Success ? "Success" : "Warning"] =
-                    $"Odoo product import complete: {result.Summary}" +
-                    (result.Errors.Any() ? $" — First error: {result.Errors[0]}" : "");
-            }
-            catch (Exception ex)
-            {
-                TempData["Error"] = $"Product import failed: {ex.Message}";
-            }
-
             return RedirectToAction(nameof(Index));
         }
 

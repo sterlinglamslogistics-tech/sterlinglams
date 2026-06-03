@@ -33,6 +33,7 @@ public interface IOdooService
 
     Task<int> CreateSaleOrderAsync(CreateSaleOrderRequest request);
     Task<bool> ConfirmSaleOrderAsync(int odooOrderId);
+    Task<bool> CancelSaleOrderAsync(int odooOrderId);
 }
 
 public class CreateSaleOrderRequest

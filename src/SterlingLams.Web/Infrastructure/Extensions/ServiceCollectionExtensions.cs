@@ -28,9 +28,6 @@ public static class ServiceCollectionExtensions
         services.AddMemoryCache();
         services.AddScoped<IInventoryService, InventoryService>();
 
-        // ─── Product Import ───────────────────────────────────────────────────
-        services.AddScoped<IProductImportService, ProductImportService>();
-
         // ─── Payment ─────────────────────────────────────────────────────────
         var paymentProvider = configuration["Payment:Provider"] ?? "Paystack";
 
