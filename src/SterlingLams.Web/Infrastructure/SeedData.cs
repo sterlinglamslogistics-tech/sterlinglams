@@ -122,6 +122,30 @@ public static class SeedData
 
             await db.SaveChangesAsync();
 
+            // ─── Product Attributes ───────────────────────────────────────
+            var attributeSeed = new (string Name, string[] Values)[]
+            {
+                ("Ring Size", new[] { "5", "6", "7", "8", "9", "10" }),
+                ("Metal",     new[] { "Gold", "Silver", "Rose Gold", "White Gold" }),
+                ("Length",    new[] { "16\"", "18\"", "20\"", "24\"" }),
+            };
+            foreach (var (name, values) in attributeSeed)
+            {
+                var attr = await db.ProductAttributes.Include(a => a.Values).FirstOrDefaultAsync(a => a.Name == name);
+                if (attr == null)
+                {
+                    attr = new ProductAttribute { Name = name };
+                    db.ProductAttributes.Add(attr);
+                    await db.SaveChangesAsync();
+                }
+                foreach (var v in values)
+                {
+                    if (!await db.ProductAttributeValues.AnyAsync(x => x.ProductAttributeId == attr.Id && x.Value == v))
+                        db.ProductAttributeValues.Add(new ProductAttributeValue { ProductAttributeId = attr.Id, Value = v });
+                }
+                await db.SaveChangesAsync();
+            }
+
             // ─── Default Admin User ───────────────────────────────────────
             var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
             var adminEmail = config["SeedData:AdminEmail"];

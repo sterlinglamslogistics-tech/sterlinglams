@@ -17,4 +17,7 @@ public class ProductVariant
     public decimal? PriceAdjustment { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    /// <summary>The attribute values that define this variant (Size 7, Rose Gold, …).</summary>
+    public ICollection<ProductVariantValue> Values { get; set; } = new List<ProductVariantValue>();
 }

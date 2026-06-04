@@ -1,0 +1,70 @@
+@model List<SterlingLams.Web.Models.Domain.ProductAttribute>
+@{
+    ViewData["Title"] = "Attributes";
+}
+
+<p class="text-xs text-neutral-400 mb-6">Define the options products can vary by (e.g. Ring Size, Metal). Assign them to products on the product page to generate variants.</p>
+
+<div class="grid lg:grid-cols-3 gap-6">
+
+    <!-- Existing attributes -->
+    <div class="lg:col-span-2 space-y-4">
+        @if (!Model.Any())
+        {
+            <div class="bg-white rounded-sm border border-neutral-100 p-8 text-center text-sm text-neutral-400">
+                No attributes yet. Add one on the right.
+            </div>
+        }
+        @foreach (var attr in Model)
+        {
+            <div class="bg-white rounded-sm border border-neutral-100 p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-medium text-neutral-800">@attr.Name</h2>
+                    <form asp-area="Admin" asp-controller="Attributes" asp-action="DeleteAttribute" asp-route-id="@attr.Id" method="post"
+                          onsubmit="return confirm('Delete attribute @attr.Name and its values?')">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="text-xs text-rose-400 hover:text-rose-700 transition-colors">Delete</button>
+                    </form>
+                </div>
+
+                <div class="flex flex-wrap gap-2 mb-4">
+                    @foreach (var v in attr.Values.OrderBy(v => v.DisplayOrder).ThenBy(v => v.Value))
+                    {
+                        <span class="inline-flex items-center gap-1.5 bg-neutral-100 text-neutral-700 text-xs rounded-sm pl-3 pr-1.5 py-1">
+                            @v.Value
+                            <form asp-area="Admin" asp-controller="Attributes" asp-action="DeleteValue" asp-route-id="@v.Id" method="post" class="inline">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="text-neutral-400 hover:text-rose-600" title="Remove">&times;</button>
+                            </form>
+                        </span>
+                    }
+                    @if (!attr.Values.Any())
+                    {
+                        <span class="text-xs text-neutral-400">No values yet.</span>
+                    }
+                </div>
+
+                <form asp-area="Admin" asp-controller="Attributes" asp-action="AddValue" method="post" class="flex gap-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="attributeId" value="@attr.Id" />
+                    <input type="text" name="value" placeholder="Add a value (e.g. 7, Rose Gold, 18&quot;)"
+                           class="flex-1 border border-neutral-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:border-brand" />
+                    <button type="submit" class="px-3 py-1.5 border border-neutral-300 text-neutral-700 text-xs rounded-sm hover:bg-neutral-50 transition-colors">Add value</button>
+                </form>
+            </div>
+        }
+    </div>
+
+    <!-- Add attribute -->
+    <div>
+        <div class="bg-white rounded-sm border border-neutral-100 p-5 sticky top-6">
+            <h2 class="text-sm font-medium text-neutral-800 mb-4">New Attribute</h2>
+            <form asp-area="Admin" asp-controller="Attributes" asp-action="CreateAttribute" method="post" class="space-y-3">
+                @Html.AntiForgeryToken()
+                <input type="text" name="name" placeholder="e.g. Ring Size"
+                       class="w-full border border-neutral-200 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+                <button type="submit" class="w-full px-4 py-2 bg-neutral-900 text-white text-xs rounded-sm hover:bg-brand transition-colors">Add Attribute</button>
+            </form>
+        </div>
+    </div>
+</div>

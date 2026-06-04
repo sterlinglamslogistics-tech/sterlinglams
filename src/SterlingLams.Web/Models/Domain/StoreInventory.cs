@@ -8,6 +8,9 @@ public class StoreInventory
     public int ProductId { get; set; }
     public Product Product { get; set; } = null!;
 
+    /// <summary>Variant this stock row is for; 0 = product-level (no variants).</summary>
+    public int ProductVariantId { get; set; }
+
     public int StoreId { get; set; }
     public Store Store { get; set; } = null!;
 

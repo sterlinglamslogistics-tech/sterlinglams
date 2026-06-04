@@ -10,6 +10,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
+    public DbSet<ProductAttribute> ProductAttributes => Set<ProductAttribute>();
+    public DbSet<ProductAttributeValue> ProductAttributeValues => Set<ProductAttributeValue>();
+    public DbSet<ProductVariantValue> ProductVariantValues => Set<ProductVariantValue>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
     public DbSet<ProductTag> ProductTags => Set<ProductTag>();
     public DbSet<Category> Categories => Set<Category>();
@@ -62,7 +65,36 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         // ─── StoreInventory ─────────────────────────────────────────────────
         builder.Entity<StoreInventory>(e =>
         {
-            e.HasIndex(si => new { si.ProductId, si.StoreId }).IsUnique();
+            // Unique per product + variant (0 = product-level) + store.
+            e.HasIndex(si => new { si.ProductId, si.ProductVariantId, si.StoreId }).IsUnique();
+        });
+
+        // ─── Product attributes / variant values ────────────────────────────
+        builder.Entity<ProductAttribute>(e =>
+        {
+            e.HasIndex(a => a.Name).IsUnique();
+        });
+
+        builder.Entity<ProductAttributeValue>(e =>
+        {
+            e.HasOne(v => v.Attribute)
+             .WithMany(a => a.Values)
+             .HasForeignKey(v => v.ProductAttributeId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(v => new { v.ProductAttributeId, v.Value }).IsUnique();
+        });
+
+        builder.Entity<ProductVariantValue>(e =>
+        {
+            e.HasOne(vv => vv.Variant)
+             .WithMany(v => v.Values)
+             .HasForeignKey(vv => vv.ProductVariantId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(vv => vv.AttributeValue)
+             .WithMany()
+             .HasForeignKey(vv => vv.ProductAttributeValueId)
+             .OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(vv => new { vv.ProductVariantId, vv.ProductAttributeValueId }).IsUnique();
         });
 
         // ─── Order ──────────────────────────────────────────────────────────
