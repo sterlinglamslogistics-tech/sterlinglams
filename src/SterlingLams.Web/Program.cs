@@ -239,6 +239,16 @@ if (!string.IsNullOrWhiteSpace(mergeSpec))
     return; // one-shot command
 }
 
+// One-off: import WooCommerce variants. Runs only when WP_IMPORT_VARIANTS=1, then exits.
+if (Environment.GetEnvironmentVariable("WP_IMPORT_VARIANTS") == "1")
+{
+    var l = app.Services.GetRequiredService<ILogger<Program>>();
+    var dir = Environment.GetEnvironmentVariable("WP_IMPORT_DIR")
+        ?? Path.Combine(builder.Environment.ContentRootPath, "..", "..", ".wpimport");
+    await SterlingLams.Web.Infrastructure.WordpressImport.WordpressVariantImporter.RunAsync(app.Services, dir, l);
+    return; // one-shot command
+}
+
 // One-off WooCommerce (.wpress) product import. Runs only when WP_IMPORT=1, then exits.
 if (Environment.GetEnvironmentVariable("WP_IMPORT") == "1")
 {
