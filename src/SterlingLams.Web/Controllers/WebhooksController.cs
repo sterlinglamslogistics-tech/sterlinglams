@@ -3,6 +3,7 @@ using SterlingLams.Web.Data;
 using SterlingLams.Web.Models.Domain;
 using SterlingLams.Web.Services.Odoo;
 using SterlingLams.Web.Services.Payment;
+using SterlingLams.Web.Services.Inventory;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
 using System.Text;
@@ -32,6 +33,41 @@ public class WebhooksController : ControllerBase
         _scopeFactory = scopeFactory;
         _config = config;
         _logger = logger;
+    }
+
+    // Background: confirm the Odoo sale order, optionally validate its delivery (drop on-hand),
+    // and refresh the ordered products' stock. Runs in its own scope (the request scope is gone).
+    private void ScheduleOdooFulfillment(int? odooSaleOrderId, int localOrderId, string orderNumber)
+    {
+        if (!_config.GetValue<bool>("Odoo:AutoConfirmOrders") || odooSaleOrderId is not int soId || soId <= 0)
+            return;
+
+        _ = Task.Run(async () =>
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var sp = scope.ServiceProvider;
+            var odoo = sp.GetRequiredService<IOdooService>();
+            var cfg = sp.GetRequiredService<IConfiguration>();
+            var db = sp.GetRequiredService<ApplicationDbContext>();
+            var inventory = sp.GetRequiredService<IInventoryService>();
+            try
+            {
+                await odoo.ConfirmSaleOrderAsync(soId);
+                if (cfg.GetValue<bool>("Odoo:AutoValidateDelivery"))
+                    await odoo.ValidateDeliveryAsync(soId);
+
+                var variantIds = await db.OrderItems
+                    .Where(oi => oi.OrderId == localOrderId)
+                    .Join(db.Products, oi => oi.ProductId, p => p.Id, (oi, p) => p.OdooProductId)
+                    .Where(v => v != 0).Distinct().ToArrayAsync();
+                if (variantIds.Length > 0)
+                    await inventory.SyncProductInventoryAsync(variantIds);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Odoo post-payment processing failed for {OrderNumber}", orderNumber);
+            }
+        });
     }
 
     [HttpPost("paystack")]
@@ -100,19 +136,8 @@ public class WebhooksController : ControllerBase
                 order.PaymentProvider = "Paystack";
                 await _db.SaveChangesAsync();
 
-                // Optionally auto-confirm in Odoo (off by default; orders arrive as quotations).
-                if (_config.GetValue<bool>("Odoo:AutoConfirmOrders"))
-                {
-                    var odooOrderId = order.OdooSaleOrderId;
-                    var orderNumberForLog = order.OrderNumber;
-                    _ = Task.Run(async () =>
-                    {
-                        using var scope = _scopeFactory.CreateScope();
-                        var odoo = scope.ServiceProvider.GetRequiredService<IOdooService>();
-                        try { await odoo.ConfirmSaleOrderAsync(odooOrderId ?? 0); }
-                        catch (Exception ex) { _logger.LogError(ex, "Failed to confirm Odoo order for {OrderNumber}", orderNumberForLog); }
-                    });
-                }
+                // Confirm + (optionally) validate delivery + refresh stock in the background.
+                ScheduleOdooFulfillment(order.OdooSaleOrderId, order.Id, order.OrderNumber);
 
                 _logger.LogInformation("Order {OrderNumber} marked as paid via webhook", order.OrderNumber);
             }
@@ -169,18 +194,7 @@ public class WebhooksController : ControllerBase
                     order.PaymentProvider = "Stripe";
                     await _db.SaveChangesAsync();
 
-                    if (_config.GetValue<bool>("Odoo:AutoConfirmOrders"))
-                    {
-                        var odooOrderId = order.OdooSaleOrderId;
-                        var orderNumberForLog = order.OrderNumber;
-                        _ = Task.Run(async () =>
-                        {
-                            using var scope = _scopeFactory.CreateScope();
-                            var odoo = scope.ServiceProvider.GetRequiredService<IOdooService>();
-                            try { await odoo.ConfirmSaleOrderAsync(odooOrderId ?? 0); }
-                            catch (Exception ex) { _logger.LogError(ex, "Failed to confirm Odoo order for {OrderNumber}", orderNumberForLog); }
-                        });
-                    }
+                    ScheduleOdooFulfillment(order.OdooSaleOrderId, order.Id, order.OrderNumber);
 
                     _logger.LogInformation("Order {OrderNumber} marked as paid via Stripe webhook", orderNumber);
                 }

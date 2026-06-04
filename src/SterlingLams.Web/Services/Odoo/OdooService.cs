@@ -20,6 +20,12 @@ public class OdooSettings
     /// order simply stays as a quotation in Odoo and checkout is unaffected.
     /// </summary>
     public bool AutoConfirmOrders { get; set; } = true;
+
+    /// <summary>
+    /// When true, the delivery is also validated on payment so on-hand stock drops immediately
+    /// (not just reserved). Off → stock is reserved and staff validate the delivery in Odoo.
+    /// </summary>
+    public bool AutoValidateDelivery { get; set; } = true;
 }
 
 public class OdooService : IOdooService
@@ -304,6 +310,35 @@ public class OdooService : IOdooService
             new object[] { new[] { odooOrderId } }
         );
         return result;
+    }
+
+    public async Task ValidateDeliveryAsync(int odooOrderId)
+    {
+        // Outgoing delivery picking(s) created when the sale order was confirmed.
+        var pickings = await SearchReadAsync("stock.picking",
+            new object[] { new object[] { "sale_id", "=", odooOrderId }, new object[] { "picking_type_code", "=", "outgoing" } },
+            new[] { "id", "state" });
+
+        foreach (var p in pickings)
+        {
+            var state = p.TryGetValue("state", out var s) ? s.GetString() : null;
+            if (state is "done" or "cancel") continue;
+            var pid = p["id"].GetInt32();
+
+            // Set each move's done quantity to its demand and mark it picked → full delivery, no backorder.
+            var moves = await SearchReadAsync("stock.move",
+                new object[] { new object[] { "picking_id", "=", pid } }, new[] { "id", "product_uom_qty" });
+            foreach (var m in moves)
+            {
+                var mid = m["id"].GetInt32();
+                var demand = m.TryGetValue("product_uom_qty", out var d) && d.TryGetDouble(out var dv) ? dv : 0;
+                await WriteAsync("stock.move", new[] { mid }, new() { ["quantity"] = demand, ["picked"] = true });
+            }
+
+            // Validate the picking (reduces on-hand). Skip the backorder wizard.
+            await ExecuteAsync("stock.picking", "button_validate", new object[] { new[] { pid } },
+                new { skip_backorder = true, picking_ids_not_to_backorder = new[] { pid } });
+        }
     }
 }
 

@@ -34,8 +34,9 @@ public static class OdooSimCheckout
             Note = $"SIM checkout {DateTime.UtcNow:HHmmss}",
             Lines = new() { new SaleOrderLine { OdooProductId = product.OdooProductId, Quantity = qty, PriceUnit = product.Price } }
         });
-        logger.LogInformation("SIM: created sale.order id={Id}; confirming…", soId);
+        logger.LogInformation("SIM: created sale.order id={Id}; confirming + validating delivery…", soId);
         await odoo.ConfirmSaleOrderAsync(soId);
+        await odoo.ValidateDeliveryAsync(soId);
 
         var (oh1, rsv1) = await ReadAsync(odoo, product.OdooProductId, store.OdooStockLocationId);
         logger.LogInformation("SIM: '{P}' @ {S}            AFTER   on-hand={Oh} reserved={Rsv} available={Av}",

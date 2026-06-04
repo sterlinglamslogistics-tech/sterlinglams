@@ -34,6 +34,9 @@ public interface IOdooService
     Task<int> CreateSaleOrderAsync(CreateSaleOrderRequest request);
     Task<bool> ConfirmSaleOrderAsync(int odooOrderId);
     Task<bool> CancelSaleOrderAsync(int odooOrderId);
+
+    /// <summary>Validates the outgoing delivery(s) for a sale order so on-hand stock actually drops.</summary>
+    Task ValidateDeliveryAsync(int odooOrderId);
 }
 
 public class CreateSaleOrderRequest

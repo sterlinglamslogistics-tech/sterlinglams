@@ -299,6 +299,10 @@ public class CheckoutController : Controller
                 {
                     await _odoo.ConfirmSaleOrderAsync(soId);
 
+                    // Optionally validate the delivery so on-hand drops immediately (not just reserved).
+                    if (_config.GetValue<bool>("Odoo:AutoValidateDelivery"))
+                        await _odoo.ValidateDeliveryAsync(soId);
+
                     // Immediately refresh the ordered products' stock so the storefront reflects
                     // the new availability right away (no waiting for the periodic sync).
                     var variantIds = await _db.OrderItems
