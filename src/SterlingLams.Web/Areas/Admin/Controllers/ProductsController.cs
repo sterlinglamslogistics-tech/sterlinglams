@@ -257,6 +257,126 @@ namespace SterlingLams.Web.Areas.Admin.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        // ─── Variants ─────────────────────────────────────────────────────────
+        public async Task<IActionResult> Variants(int id)
+        {
+            var product = await _db.Products.FindAsync(id);
+            if (product == null) return NotFound();
+            ViewData["Title"] = $"Variants — {product.Name}";
+
+            var attributes = await _db.ProductAttributes.Include(a => a.Values)
+                .OrderBy(a => a.DisplayOrder).ThenBy(a => a.Name).ToListAsync();
+            var variants = await _db.ProductVariants.Include(v => v.Values)
+                .Where(v => v.ProductId == id).OrderBy(v => v.Name).ToListAsync();
+
+            var stockByVariant = await _db.StoreInventories
+                .Where(si => si.ProductId == id && si.ProductVariantId != 0)
+                .GroupBy(si => si.ProductVariantId)
+                .Select(g => new { Vid = g.Key, Qty = g.Sum(x => x.QuantityOnHand) })
+                .ToDictionaryAsync(x => x.Vid, x => x.Qty);
+
+            var vm = new AdminProductVariantsViewModel
+            {
+                ProductId = id,
+                ProductName = product.Name,
+                BasePrice = product.Price,
+                Attributes = attributes,
+                SelectedValueIds = variants.SelectMany(v => v.Values.Select(vv => vv.ProductAttributeValueId)).ToHashSet(),
+                Variants = variants.Select(v => new AdminVariantRow
+                {
+                    Id = v.Id,
+                    Name = v.Name,
+                    Sku = v.Sku,
+                    PriceAdjustment = v.PriceAdjustment ?? 0,
+                    IsActive = v.IsActive,
+                    OdooVariantId = v.OdooVariantId,
+                    Stock = stockByVariant.TryGetValue(v.Id, out var q) ? q : 0
+                }).ToList()
+            };
+            return View(vm);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GenerateVariants(int id, int[] valueIds)
+        {
+            if (await _db.Products.FindAsync(id) == null) return NotFound();
+            valueIds ??= System.Array.Empty<int>();
+
+            var values = await _db.ProductAttributeValues.Include(v => v.Attribute)
+                .Where(v => valueIds.Contains(v.Id)).ToListAsync();
+            if (values.Count == 0)
+            {
+                TempData["Error"] = "Select at least one value to generate variants.";
+                return RedirectToAction(nameof(Variants), new { id });
+            }
+
+            // Cartesian product across the chosen attributes.
+            var groups = values.GroupBy(v => v.ProductAttributeId).Select(g => g.ToList()).ToList();
+            IEnumerable<List<ProductAttributeValue>> combos = new List<List<ProductAttributeValue>> { new() };
+            foreach (var g in groups)
+                combos = combos.SelectMany(c => g.Select(v => new List<ProductAttributeValue>(c) { v })).ToList();
+
+            var existing = await _db.ProductVariants.Include(v => v.Values)
+                .Where(v => v.ProductId == id).ToListAsync();
+            var existingSets = existing.Select(v => v.Values.Select(x => x.ProductAttributeValueId).OrderBy(x => x).ToArray()).ToList();
+
+            int created = 0;
+            foreach (var combo in combos)
+            {
+                var setIds = combo.Select(c => c.Id).OrderBy(x => x).ToArray();
+                if (existingSets.Any(es => es.SequenceEqual(setIds))) continue;
+
+                _db.ProductVariants.Add(new ProductVariant
+                {
+                    ProductId = id,
+                    Name = string.Join(" / ", combo.OrderBy(c => c.Attribute.DisplayOrder).ThenBy(c => c.Attribute.Name).Select(c => c.Value)),
+                    IsActive = true,
+                    PriceAdjustment = 0,
+                    Values = combo.Select(c => new ProductVariantValue { ProductAttributeValueId = c.Id }).ToList()
+                });
+                created++;
+            }
+            await _db.SaveChangesAsync();
+
+            TempData[created > 0 ? "Success" : "Warning"] = created > 0
+                ? $"{created} new variant(s) generated."
+                : "No new variants — those combinations already exist.";
+            return RedirectToAction(nameof(Variants), new { id });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveVariant(int id, int variantId, string? sku, decimal priceAdjustment, bool isActive)
+        {
+            var v = await _db.ProductVariants.FirstOrDefaultAsync(x => x.Id == variantId && x.ProductId == id);
+            if (v != null)
+            {
+                v.Sku = string.IsNullOrWhiteSpace(sku) ? null : sku.Trim();
+                v.PriceAdjustment = priceAdjustment;
+                v.IsActive = isActive;
+                await _db.SaveChangesAsync();
+                TempData["Success"] = "Variant updated.";
+            }
+            return RedirectToAction(nameof(Variants), new { id });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteVariant(int id, int variantId)
+        {
+            var v = await _db.ProductVariants.FirstOrDefaultAsync(x => x.Id == variantId && x.ProductId == id);
+            if (v != null)
+            {
+                var inv = _db.StoreInventories.Where(si => si.ProductVariantId == variantId);
+                _db.StoreInventories.RemoveRange(inv);
+                _db.ProductVariants.Remove(v); // cascades variant values
+                await _db.SaveChangesAsync();
+                TempData["Success"] = "Variant deleted.";
+            }
+            return RedirectToAction(nameof(Variants), new { id });
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)

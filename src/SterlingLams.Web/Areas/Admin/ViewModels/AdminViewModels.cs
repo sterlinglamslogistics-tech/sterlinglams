@@ -113,6 +113,28 @@ namespace SterlingLams.Web.Areas.Admin.ViewModels
         public List<ProductImage> ExistingImages { get; set; } = new();
     }
 
+    // ─── Product Variants ───────────────────────────────────────────────────
+    public class AdminProductVariantsViewModel
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; } = "";
+        public decimal BasePrice { get; set; }
+        public List<ProductAttribute> Attributes { get; set; } = new();   // each with Values
+        public HashSet<int> SelectedValueIds { get; set; } = new();        // values already in use
+        public List<AdminVariantRow> Variants { get; set; } = new();
+    }
+
+    public class AdminVariantRow
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public string? Sku { get; set; }
+        public decimal PriceAdjustment { get; set; }
+        public bool IsActive { get; set; }
+        public int OdooVariantId { get; set; }
+        public int Stock { get; set; }
+    }
+
     // ─── Inventory ────────────────────────────────────────────────────────
     public class AdminInventoryViewModel
     {

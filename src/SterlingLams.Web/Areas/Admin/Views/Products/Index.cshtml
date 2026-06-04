@@ -79,6 +79,8 @@
                         <div class="flex items-center justify-end gap-2">
                             <a asp-area="Admin" asp-controller="Products" asp-action="Edit" asp-route-id="@p.Id"
                                class="text-xs text-neutral-500 hover:text-neutral-900 transition-colors">Edit</a>
+                            <a asp-area="Admin" asp-controller="Products" asp-action="Variants" asp-route-id="@p.Id"
+                               class="text-xs text-neutral-500 hover:text-neutral-900 transition-colors">Variants</a>
                             <form asp-area="Admin" asp-controller="Products" asp-action="ToggleActive"
                                   asp-route-id="@p.Id" method="post" class="inline">
                                 @Html.AntiForgeryToken()
