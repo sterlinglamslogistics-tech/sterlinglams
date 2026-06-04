@@ -161,12 +161,17 @@ public class ProductsController : Controller
             CategoryName = product.Category.Name,
             CategorySlug = product.Category.Slug,
             ImageUrls = product.Images.Select(i => i.Url).ToList(),
-            StoreStock = product.StoreInventories.Select(si => new StoreStockViewModel
-            {
-                StoreName = si.Store.Name,
-                StoreSlug = si.Store.Slug,
-                Quantity = Math.Max(0, si.QuantityOnHand - si.QuantityReserved)
-            }).ToList(),
+            // Aggregate per store (sum across variants) so each store appears once.
+            StoreStock = product.StoreInventories
+                .GroupBy(si => new { si.StoreId, si.Store.Name, si.Store.Slug })
+                .Select(g => new StoreStockViewModel
+                {
+                    StoreName = g.Key.Name,
+                    StoreSlug = g.Key.Slug,
+                    Quantity = g.Sum(si => Math.Max(0, si.QuantityOnHand - si.QuantityReserved))
+                })
+                .OrderBy(s => s.StoreName)
+                .ToList(),
             Variants = product.Variants.Select(v => new ProductVariantOptionViewModel
             {
                 Id = v.Id,
