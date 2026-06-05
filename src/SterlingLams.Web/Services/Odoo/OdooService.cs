@@ -136,9 +136,11 @@ public class OdooService : IOdooService
     public Task<int> AuthenticateAsync() => GetUidAsync();
 
     public async Task<List<Dictionary<string, JsonElement>>> SearchReadAsync(
-        string model, object[] domain, string[] fields, int limit = 0)
+        string model, object[] domain, string[] fields, int limit = 0, object? context = null)
     {
-        object kwargs = limit > 0 ? new { fields, limit } : new { fields };
+        var kwargs = new Dictionary<string, object?> { ["fields"] = fields };
+        if (limit > 0) kwargs["limit"] = limit;
+        if (context != null) kwargs["context"] = context;
         return await ExecuteKwAsync<List<Dictionary<string, JsonElement>>>(
             model, "search_read", new object[] { domain }, kwargs);
     }
@@ -265,6 +267,89 @@ public class OdooService : IOdooService
             ["email"] = email,
             ["customer_rank"] = 1,
         });
+    }
+
+    // ─── Variant / attribute helpers ───────────────────────────────────────────
+
+    public async Task<int> EnsureAttributeAsync(string name)
+    {
+        var found = await SearchReadAsync("product.attribute",
+            new object[] { new object[] { "name", "=", name } }, new[] { "id" }, 1);
+        if (found.Count > 0) return found[0]["id"].GetInt32();
+        return await CreateAsync("product.attribute", new() { ["name"] = name, ["create_variant"] = "always" });
+    }
+
+    public async Task<int> EnsureAttributeValueAsync(int attributeId, string value)
+    {
+        var found = await SearchReadAsync("product.attribute.value",
+            new object[] { new object[] { "name", "=", value }, new object[] { "attribute_id", "=", attributeId } },
+            new[] { "id" }, 1);
+        if (found.Count > 0) return found[0]["id"].GetInt32();
+        return await CreateAsync("product.attribute.value", new() { ["name"] = value, ["attribute_id"] = attributeId });
+    }
+
+    public Task AddTemplateAttributeLineAsync(int templateId, int attributeId, int[] valueIds)
+        => CreateAsync("product.template.attribute.line", new()
+        {
+            ["product_tmpl_id"] = templateId,
+            ["attribute_id"] = attributeId,
+            ["value_ids"] = new object[] { new object[] { 6, 0, valueIds } },
+        });
+
+    public async Task<int> GetTemplateIdAsync(int variantProductId)
+    {
+        // active_test:false so an archived original variant (after variant generation) still resolves.
+        var r = await SearchReadAsync("product.product",
+            new object[] { new object[] { "id", "=", variantProductId } }, new[] { "product_tmpl_id" }, 1,
+            new { active_test = false });
+        return r.Count > 0 && r[0].TryGetValue("product_tmpl_id", out var v) && v.ValueKind == JsonValueKind.Array && v.GetArrayLength() > 0
+            ? v[0].GetInt32() : 0;
+    }
+
+    public async Task<HashSet<int>> GetTemplateAttributeIdsAsync(int templateId)
+    {
+        var lines = await SearchReadAsync("product.template.attribute.line",
+            new object[] { new object[] { "product_tmpl_id", "=", templateId } }, new[] { "attribute_id" });
+        var ids = new HashSet<int>();
+        foreach (var l in lines)
+            if (l.TryGetValue("attribute_id", out var a) && a.ValueKind == JsonValueKind.Array && a.GetArrayLength() > 0)
+                ids.Add(a[0].GetInt32());
+        return ids;
+    }
+
+    public async Task<List<(int ProductId, List<string> ValueNames)>> GetTemplateVariantsAsync(int templateId)
+    {
+        var prods = await SearchReadAsync("product.product",
+            new object[] { new object[] { "product_tmpl_id", "=", templateId } },
+            new[] { "id", "product_template_attribute_value_ids" });
+
+        // Collect all PTAV ids → resolve to value names.
+        var ptavIds = new HashSet<int>();
+        foreach (var p in prods)
+            if (p.TryGetValue("product_template_attribute_value_ids", out var arr) && arr.ValueKind == JsonValueKind.Array)
+                foreach (var e in arr.EnumerateArray())
+                    if (e.ValueKind == JsonValueKind.Number) ptavIds.Add(e.GetInt32());
+
+        var nameByPtav = new Dictionary<int, string>();
+        if (ptavIds.Count > 0)
+        {
+            var ptavs = await SearchReadAsync("product.template.attribute.value",
+                new object[] { new object[] { "id", "in", ptavIds.ToArray() } }, new[] { "id", "name" });
+            foreach (var pv in ptavs)
+                nameByPtav[pv["id"].GetInt32()] = OdooModels.OdooValue.AsString(pv.GetValueOrDefault("name"));
+        }
+
+        var result = new List<(int, List<string>)>();
+        foreach (var p in prods)
+        {
+            var names = new List<string>();
+            if (p.TryGetValue("product_template_attribute_value_ids", out var arr) && arr.ValueKind == JsonValueKind.Array)
+                foreach (var e in arr.EnumerateArray())
+                    if (e.ValueKind == JsonValueKind.Number && nameByPtav.TryGetValue(e.GetInt32(), out var nm))
+                        names.Add(nm);
+            result.Add((p["id"].GetInt32(), names));
+        }
+        return result;
     }
 
     public async Task<int> CreateSaleOrderAsync(CreateSaleOrderRequest request)

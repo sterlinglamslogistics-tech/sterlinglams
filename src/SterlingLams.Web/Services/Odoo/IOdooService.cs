@@ -9,7 +9,7 @@ public interface IOdooService
 
     /// <summary>Generic search_read for diagnostics/linking. Returns rows as field→JSON maps.</summary>
     Task<List<Dictionary<string, System.Text.Json.JsonElement>>> SearchReadAsync(
-        string model, object[] domain, string[] fields, int limit = 0);
+        string model, object[] domain, string[] fields, int limit = 0, object? context = null);
 
     /// <summary>Creates a single record, returns its new id.</summary>
     Task<int> CreateAsync(string model, Dictionary<string, object?> values);
@@ -30,6 +30,20 @@ public interface IOdooService
     Task<Dictionary<int, Dictionary<int, int>>> GetInventoryByStoreAsync(int[] odooProductIds);
     /// <summary>Finds a res.partner by email, or creates a customer partner. Returns its id.</summary>
     Task<int> FindOrCreatePartnerAsync(string? email, string name);
+
+    // ─── Variant / attribute helpers (Odoo product.attribute + template lines) ───
+    /// <summary>Find a product.attribute by name, or create it (variant-generating). Returns id.</summary>
+    Task<int> EnsureAttributeAsync(string name);
+    /// <summary>Find a product.attribute.value by name within an attribute, or create it. Returns id.</summary>
+    Task<int> EnsureAttributeValueAsync(int attributeId, string value);
+    /// <summary>Adds an attribute line to a template (triggers Odoo variant generation).</summary>
+    Task AddTemplateAttributeLineAsync(int templateId, int attributeId, int[] valueIds);
+    /// <summary>Returns the product.template id for a given product.product (variant) id (incl. archived).</summary>
+    Task<int> GetTemplateIdAsync(int variantProductId);
+    /// <summary>Attribute ids already on a template (to avoid adding duplicate attribute lines).</summary>
+    Task<HashSet<int>> GetTemplateAttributeIdsAsync(int templateId);
+    /// <summary>Returns the template's generated variants as (productId, attributeValueNames).</summary>
+    Task<List<(int ProductId, List<string> ValueNames)>> GetTemplateVariantsAsync(int templateId);
 
     Task<int> CreateSaleOrderAsync(CreateSaleOrderRequest request);
     Task<bool> ConfirmSaleOrderAsync(int odooOrderId);

@@ -206,6 +206,14 @@ if (Environment.GetEnvironmentVariable("ODOO_VERIFY_SYNC") == "1")
     return; // one-shot command
 }
 
+// One-off: seed Odoo with per-variant stock. Runs only when ODOO_PUSH_VARIANT_STOCK=1.
+if (Environment.GetEnvironmentVariable("ODOO_PUSH_VARIANT_STOCK") == "1")
+{
+    var l = app.Services.GetRequiredService<ILogger<Program>>();
+    await SterlingLams.Web.Infrastructure.Odoo.OdooPushVariantStock.RunAsync(app.Services, l);
+    return; // one-shot command
+}
+
 // One-off: seed Odoo with current per-store stock. Runs only when ODOO_PUSH_STOCK=1.
 if (Environment.GetEnvironmentVariable("ODOO_PUSH_STOCK") == "1")
 {
@@ -219,6 +227,14 @@ if (Environment.GetEnvironmentVariable("ODOO_EXPORT_PRODUCTS") == "1")
 {
     var l = app.Services.GetRequiredService<ILogger<Program>>();
     await SterlingLams.Web.Infrastructure.Odoo.OdooExportProducts.RunAsync(app.Services, l);
+    return; // one-shot command
+}
+
+// One-off: push product variants to Odoo. Runs only when ODOO_PUSH_VARIANTS=1.
+if (Environment.GetEnvironmentVariable("ODOO_PUSH_VARIANTS") == "1")
+{
+    var l = app.Services.GetRequiredService<ILogger<Program>>();
+    await SterlingLams.Web.Infrastructure.Odoo.OdooPushVariants.RunAsync(app.Services, l);
     return; // one-shot command
 }
 

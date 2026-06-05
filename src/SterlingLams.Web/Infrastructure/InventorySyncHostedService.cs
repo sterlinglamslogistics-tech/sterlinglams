@@ -50,30 +50,10 @@ public class InventorySyncHostedService : BackgroundService
         try
         {
             using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var inventory = scope.ServiceProvider.GetRequiredService<IInventoryService>();
 
-            var odooProductIds = await db.Products
-                .Where(p => p.IsActive && p.OdooProductId != 0)
-                .Select(p => p.OdooProductId)
-                .ToArrayAsync(ct);
-
-            if (odooProductIds.Length == 0)
-            {
-                _logger.LogDebug("No active products to sync.");
-                return;
-            }
-
-            _logger.LogInformation("Syncing inventory for {Count} products from Odoo...", odooProductIds.Length);
-
-            // Sync in batches of 50 to avoid large Odoo requests
-            var batches = odooProductIds.Chunk(50);
-            foreach (var batch in batches)
-            {
-                if (ct.IsCancellationRequested) break;
-                await inventory.SyncProductInventoryAsync(batch);
-            }
-
+            _logger.LogInformation("Syncing inventory from Odoo (products + variants)...");
+            await inventory.SyncAllAsync();   // variant-aware: simple products + variant ids
             _logger.LogInformation("Inventory sync complete.");
         }
         catch (OperationCanceledException)

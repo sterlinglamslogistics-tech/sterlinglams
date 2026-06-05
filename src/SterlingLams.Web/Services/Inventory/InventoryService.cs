@@ -65,7 +65,11 @@ public class InventoryService : IInventoryService
         return result;
     }
 
-    /// <summary>Syncs stock from Odoo (per store location) into the local StoreInventory.</summary>
+    /// <summary>
+    /// Syncs stock from Odoo into local StoreInventory for the given Odoo product.product ids.
+    /// Ids may be simple-product variant ids (→ product-level, variant 0) or variant ids
+    /// (→ that ProductVariant). Handles both via a lookup.
+    /// </summary>
     public async Task SyncProductInventoryAsync(int[] odooProductIds)
     {
         try
@@ -74,23 +78,29 @@ public class InventoryService : IInventoryService
             if (stores.Count == 0) return;
             var storeByLocation = stores.ToDictionary(s => s.OdooStockLocationId, s => s);
 
-            var products = await _db.Products
+            // Odoo product.product id -> (local productId, local variantId; 0 = product-level)
+            var target = new Dictionary<int, (int productId, int variantId)>();
+            await foreach (var p in _db.Products
                 .Where(p => odooProductIds.Contains(p.OdooProductId))
-                .ToListAsync();
-            var productByOdoo = products.ToDictionary(p => p.OdooProductId, p => p);
+                .Select(p => new { p.OdooProductId, p.Id }).AsAsyncEnumerable())
+                target[p.OdooProductId] = (p.Id, 0);
+            await foreach (var v in _db.ProductVariants
+                .Where(v => v.OdooVariantId != 0 && odooProductIds.Contains(v.OdooVariantId))
+                .Select(v => new { v.OdooVariantId, v.ProductId, v.Id }).AsAsyncEnumerable())
+                target[v.OdooVariantId] = (v.ProductId, v.Id);   // variant wins over product-level
 
             var quants = await _odoo.GetStockQuantsAsync(odooProductIds, storeByLocation.Keys.ToArray());
 
             foreach (var q in quants)
             {
-                if (!productByOdoo.TryGetValue(q.ProductOdooId, out var product)) continue;
+                if (!target.TryGetValue(q.ProductOdooId, out var t)) continue;
                 if (!storeByLocation.TryGetValue(q.LocationOdooId, out var store)) continue;
 
                 var onHand = (int)Math.Max(0, q.Quantity);
                 var reserved = (int)Math.Max(0, q.ReservedQuantity);
 
-                var existing = await _db.StoreInventories
-                    .FirstOrDefaultAsync(si => si.ProductId == product.Id && si.StoreId == store.Id);
+                var existing = await _db.StoreInventories.FirstOrDefaultAsync(si =>
+                    si.ProductId == t.productId && si.ProductVariantId == t.variantId && si.StoreId == store.Id);
 
                 if (existing != null)
                 {
@@ -102,7 +112,8 @@ public class InventoryService : IInventoryService
                 {
                     _db.StoreInventories.Add(new StoreInventory
                     {
-                        ProductId = product.Id,
+                        ProductId = t.productId,
+                        ProductVariantId = t.variantId,
                         StoreId = store.Id,
                         QuantityOnHand = onHand,
                         QuantityReserved = reserved,
@@ -112,15 +123,14 @@ public class InventoryService : IInventoryService
             }
 
             await _db.SaveChangesAsync();
-
             foreach (var id in odooProductIds)
                 _cache.Remove($"inventory:product:{id}");
 
-            _logger.LogInformation("Synced inventory for {Count} products", odooProductIds.Length);
+            _logger.LogInformation("Synced inventory for {Count} Odoo product(s)", odooProductIds.Length);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to sync inventory for products {Ids}", string.Join(",", odooProductIds));
+            _logger.LogError(ex, "Failed to sync inventory for {Ids}", string.Join(",", odooProductIds));
             throw;
         }
     }
@@ -131,14 +141,22 @@ public class InventoryService : IInventoryService
         return inventory.TryGetValue(storeId, out var qty) && qty >= requiredQty;
     }
 
-    /// <summary>Syncs all active products' inventory from Odoo in batches.</summary>
+    /// <summary>Syncs all active inventory from Odoo in batches — simple products by their
+    /// product id, and variant products by each variant's Odoo id.</summary>
     public async Task SyncAllAsync()
     {
-        var odooProductIds = await _db.Products
-            .Where(p => p.IsActive && p.OdooProductId != 0)
+        // Simple products only (those without variants); variable products sync via variant ids.
+        var simpleIds = await _db.Products
+            .Where(p => p.IsActive && p.OdooProductId != 0 && !p.Variants.Any())
             .Select(p => p.OdooProductId)
-            .ToArrayAsync();
+            .ToListAsync();
 
+        var variantIds = await _db.ProductVariants
+            .Where(v => v.OdooVariantId != 0 && v.IsActive)
+            .Select(v => v.OdooVariantId)
+            .ToListAsync();
+
+        var odooProductIds = simpleIds.Concat(variantIds).Distinct().ToArray();
         if (odooProductIds.Length == 0) return;
 
         foreach (var batch in odooProductIds.Chunk(50))
