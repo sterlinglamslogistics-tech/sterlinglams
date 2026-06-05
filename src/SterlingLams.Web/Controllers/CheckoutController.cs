@@ -77,7 +77,8 @@ public class CheckoutController : Controller
             Address = s.Address,
             OpeningHours = s.OpeningHours,
             AllItemsAvailable = cart.Items.All(item => inventories
-                .Where(i => i.ProductId == item.ProductId && i.StoreId == s.Id)
+                .Where(i => i.ProductId == item.ProductId && i.StoreId == s.Id
+                    && i.ProductVariantId == (item.VariantId ?? 0))
                 .Sum(i => i.AvailableQuantity) >= item.Quantity)
         }).ToList();
     }
@@ -118,10 +119,11 @@ public class CheckoutController : Controller
         bool ItemsAvailable() =>
             vm.FulfillmentType == FulfillmentChoice.StorePickup && vm.SelectedStoreId.HasValue
                 ? cart.Items.All(i => inventories
-                    .Where(si => si.ProductId == i.ProductId && si.StoreId == vm.SelectedStoreId.Value)
+                    .Where(si => si.ProductId == i.ProductId && si.StoreId == vm.SelectedStoreId.Value
+                        && si.ProductVariantId == (i.VariantId ?? 0))
                     .Sum(si => si.AvailableQuantity) >= i.Quantity)
                 : cart.Items.All(i => inventories
-                    .Where(si => si.ProductId == i.ProductId)
+                    .Where(si => si.ProductId == i.ProductId && si.ProductVariantId == (i.VariantId ?? 0))
                     .Sum(si => si.AvailableQuantity) >= i.Quantity);
 
         if (!ItemsAvailable())
@@ -207,18 +209,36 @@ public class CheckoutController : Controller
                 .Where(p => cartProductIds.Contains(p.Id))
                 .ToDictionaryAsync(p => p.Id, p => p.OdooProductId);
 
+            // Variant lines must reference the variant's product.product id in Odoo.
+            var cartVariantIds = cart.Items.Where(i => i.VariantId.HasValue).Select(i => i.VariantId!.Value).ToList();
+            var odooVariantIdMap = cartVariantIds.Count == 0
+                ? new Dictionary<int, int>()
+                : await _db.ProductVariants
+                    .Where(v => cartVariantIds.Contains(v.Id))
+                    .ToDictionaryAsync(v => v.Id, v => v.OdooVariantId);
+
+            // Resolve the Odoo product.product id for a cart line (variant id if present and mapped,
+            // otherwise the simple product's id). Returns 0 when nothing maps (line skipped).
+            int OdooProductFor(CartItemViewModel i)
+            {
+                if (i.VariantId.HasValue && odooVariantIdMap.TryGetValue(i.VariantId.Value, out var vid) && vid != 0)
+                    return vid;
+                return odooProductIdMap.TryGetValue(i.ProductId, out var pid) ? pid : 0;
+            }
+
             var odooPartnerId = await _odoo.FindOrCreatePartnerAsync(user.Email, user.FullName);
             var odooOrderId = await _odoo.CreateSaleOrderAsync(new CreateSaleOrderRequest
             {
                 OdooPartnerId = odooPartnerId,
                 OdooWarehouseId = odooWarehouseId,
                 Lines = cart.Items
-                    .Where(i => odooProductIdMap.ContainsKey(i.ProductId))
-                    .Select(i => new SaleOrderLine
+                    .Select(i => new { Line = i, OdooId = OdooProductFor(i) })
+                    .Where(x => x.OdooId != 0)
+                    .Select(x => new SaleOrderLine
                     {
-                        OdooProductId = odooProductIdMap[i.ProductId],
-                        Quantity = i.Quantity,
-                        PriceUnit = i.UnitPrice
+                        OdooProductId = x.OdooId,
+                        Quantity = x.Line.Quantity,
+                        PriceUnit = x.Line.UnitPrice
                     }).ToList(),
                 Note = $"Sterlin Glams Web Order: {orderNumber}"
             });
@@ -304,13 +324,23 @@ public class CheckoutController : Controller
                         await _odoo.ValidateDeliveryAsync(soId);
 
                     // Immediately refresh the ordered products' stock so the storefront reflects
-                    // the new availability right away (no waiting for the periodic sync).
-                    var variantIds = await _db.OrderItems
+                    // the new availability right away (no waiting for the periodic sync). For variant
+                    // lines this is the variant's Odoo id; for simple lines, the product's id.
+                    var items = await _db.OrderItems
                         .Where(oi => oi.OrderId == order.Id)
-                        .Join(_db.Products, oi => oi.ProductId, p => p.Id, (oi, p) => p.OdooProductId)
-                        .Where(v => v != 0).Distinct().ToArrayAsync();
-                    if (variantIds.Length > 0)
-                        await _inventory.SyncProductInventoryAsync(variantIds);
+                        .Select(oi => new { oi.ProductId, oi.ProductVariantId })
+                        .ToListAsync();
+
+                    var simpleOdooIds = await _db.Products
+                        .Where(p => items.Where(i => i.ProductVariantId == null).Select(i => i.ProductId).Contains(p.Id))
+                        .Select(p => p.OdooProductId).ToListAsync();
+                    var variantOdooIds = await _db.ProductVariants
+                        .Where(v => items.Where(i => i.ProductVariantId != null).Select(i => i.ProductVariantId!.Value).Contains(v.Id))
+                        .Select(v => v.OdooVariantId).ToListAsync();
+
+                    var odooIds = simpleOdooIds.Concat(variantOdooIds).Where(v => v != 0).Distinct().ToArray();
+                    if (odooIds.Length > 0)
+                        await _inventory.SyncProductInventoryAsync(odooIds);
                 }
                 catch (Exception ex) { _logger.LogError(ex, "Odoo confirm/sync failed for {OrderNumber}", order.OrderNumber); }
             }

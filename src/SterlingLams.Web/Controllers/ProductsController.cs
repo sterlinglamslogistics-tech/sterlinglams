@@ -126,12 +126,37 @@ public class ProductsController : Controller
         var product = await _db.Products
             .Include(p => p.Category)
             .Include(p => p.Images.OrderBy(i => i.SortOrder))
-            .Include(p => p.Variants)
+            .Include(p => p.Variants).ThenInclude(v => v.Values)
+                .ThenInclude(vv => vv.AttributeValue).ThenInclude(av => av.Attribute)
             .Include(p => p.StoreInventories).ThenInclude(si => si.Store)
             .Include(p => p.Tags)
             .FirstOrDefaultAsync(p => p.Slug == slug && p.IsActive);
 
         if (product == null) return NotFound();
+
+        // Active variants and their available stock (sum of on-hand − reserved across stores).
+        var activeVariants = product.Variants.Where(v => v.IsActive).ToList();
+        var variantStock = product.StoreInventories
+            .Where(si => si.ProductVariantId != 0)
+            .GroupBy(si => si.ProductVariantId)
+            .ToDictionary(g => g.Key, g => g.Sum(si => Math.Max(0, si.QuantityOnHand - si.QuantityReserved)));
+
+        // Attribute selectors: each attribute used by this product's variants, with its distinct values
+        // (ordered by the attribute value's display order so e.g. ring sizes read 6,7,8 not 10,6,7).
+        var attributeOptions = activeVariants
+            .SelectMany(v => v.Values.Select(vv => vv.AttributeValue))
+            .Where(av => av.Attribute != null)
+            .GroupBy(av => new { av.Attribute!.Name, av.Attribute.DisplayOrder })
+            .OrderBy(g => g.Key.DisplayOrder).ThenBy(g => g.Key.Name)
+            .Select(g => new AttributeOptionViewModel
+            {
+                Name = g.Key.Name,
+                Values = g.GroupBy(av => av.Value)
+                    .OrderBy(vg => vg.Min(av => av.DisplayOrder)).ThenBy(vg => vg.Key)
+                    .Select(vg => vg.Key)
+                    .ToList()
+            })
+            .ToList();
 
         var isInWishlist = User.Identity?.IsAuthenticated == true
             && await _db.WishlistItems.AnyAsync(w => w.UserId == GetUserId() && w.ProductId == product.Id);
@@ -172,14 +197,21 @@ public class ProductsController : Controller
                 })
                 .OrderBy(s => s.StoreName)
                 .ToList(),
-            Variants = product.Variants.Select(v => new ProductVariantOptionViewModel
+            Variants = activeVariants.Select(v => new ProductVariantOptionViewModel
             {
                 Id = v.Id,
                 Name = v.Name,
                 Size = v.Size,
                 Color = v.Color,
-                PriceAdjustment = v.PriceAdjustment
+                PriceAdjustment = v.PriceAdjustment,
+                Price = product.Price + (v.PriceAdjustment ?? 0m),
+                Available = variantStock.TryGetValue(v.Id, out var q) ? q : 0,
+                ValueMap = v.Values
+                    .Where(vv => vv.AttributeValue?.Attribute != null)
+                    .GroupBy(vv => vv.AttributeValue!.Attribute!.Name)
+                    .ToDictionary(g => g.Key, g => g.First().AttributeValue!.Value)
             }).ToList(),
+            AttributeOptions = attributeOptions,
             Tags = product.Tags.Select(t => t.Name).ToList(),
             IsInWishlist = isInWishlist,
             RelatedProducts = relatedProducts.Select(p => new ProductCardViewModel

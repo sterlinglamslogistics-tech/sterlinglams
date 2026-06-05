@@ -56,12 +56,23 @@ public class WebhooksController : ControllerBase
                 if (cfg.GetValue<bool>("Odoo:AutoValidateDelivery"))
                     await odoo.ValidateDeliveryAsync(soId);
 
-                var variantIds = await db.OrderItems
+                // Refresh stock for the ordered items — variant lines by the variant's Odoo id,
+                // simple lines by the product's id.
+                var items = await db.OrderItems
                     .Where(oi => oi.OrderId == localOrderId)
-                    .Join(db.Products, oi => oi.ProductId, p => p.Id, (oi, p) => p.OdooProductId)
-                    .Where(v => v != 0).Distinct().ToArrayAsync();
-                if (variantIds.Length > 0)
-                    await inventory.SyncProductInventoryAsync(variantIds);
+                    .Select(oi => new { oi.ProductId, oi.ProductVariantId })
+                    .ToListAsync();
+
+                var simpleOdooIds = await db.Products
+                    .Where(p => items.Where(i => i.ProductVariantId == null).Select(i => i.ProductId).Contains(p.Id))
+                    .Select(p => p.OdooProductId).ToListAsync();
+                var variantOdooIds = await db.ProductVariants
+                    .Where(v => items.Where(i => i.ProductVariantId != null).Select(i => i.ProductVariantId!.Value).Contains(v.Id))
+                    .Select(v => v.OdooVariantId).ToListAsync();
+
+                var odooIds = simpleOdooIds.Concat(variantOdooIds).Where(v => v != 0).Distinct().ToArray();
+                if (odooIds.Length > 0)
+                    await inventory.SyncProductInventoryAsync(odooIds);
             }
             catch (Exception ex)
             {

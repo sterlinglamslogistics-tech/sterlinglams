@@ -36,6 +36,8 @@ public class ProductDetailViewModel
     public int TotalStock => StoreStock.Sum(s => s.Quantity);
 
     public List<ProductVariantOptionViewModel> Variants { get; set; } = new();
+    public List<AttributeOptionViewModel> AttributeOptions { get; set; } = new();
+    public bool HasVariants => AttributeOptions.Any();
     public List<string> Tags { get; set; } = new();
 
     public bool IsInWishlist { get; set; }
@@ -49,4 +51,20 @@ public class ProductVariantOptionViewModel
     public string? Size { get; set; }
     public string? Color { get; set; }
     public decimal? PriceAdjustment { get; set; }
+
+    /// <summary>Attribute name → chosen value for this variant (e.g. "Ring Size" → "7").</summary>
+    public Dictionary<string, string> ValueMap { get; set; } = new();
+    /// <summary>Absolute price for this variant (base + adjustment).</summary>
+    public decimal Price { get; set; }
+    public string FormattedPrice => $"₦{Price:N0}";
+    /// <summary>Total available (on hand − reserved) across all stores for this variant.</summary>
+    public int Available { get; set; }
+    public bool InStock => Available > 0;
+}
+
+/// <summary>A single attribute (e.g. "Ring Size") and the distinct values offered for this product.</summary>
+public class AttributeOptionViewModel
+{
+    public string Name { get; set; } = string.Empty;
+    public List<string> Values { get; set; } = new();
 }

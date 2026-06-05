@@ -3,6 +3,16 @@
     ViewData["Title"] = Model.Name;
     ViewData["Description"] = Model.ShortDescription;
     Layout = "_Layout";
+
+    var variantsJson = System.Text.Json.JsonSerializer.Serialize(
+        Model.Variants.Select(v => new
+        {
+            id = v.Id,
+            price = v.Price,
+            formattedPrice = v.FormattedPrice,
+            available = v.Available,
+            values = v.ValueMap
+        }));
 }
 
 <div class="max-w-7xl mx-auto px-6 py-12">
@@ -39,9 +49,10 @@
 
         <!-- ─── Product Info ──────────────────────────────────────────── -->
         <div class="flex flex-col">
+            @Html.AntiForgeryToken()
             <p class="text-xs tracking-[0.3em] uppercase text-brand mb-2">@Model.CategoryName</p>
             <h1 class="font-cormorant text-4xl font-light text-neutral-900 mb-4">@Model.Name</h1>
-            <p class="text-2xl font-light text-neutral-800 mb-8">@Model.FormattedPrice</p>
+            <p id="product-price" class="text-2xl font-light text-neutral-800 mb-8">@Model.FormattedPrice</p>
 
             @if (!string.IsNullOrEmpty(Model.ShortDescription))
             {
@@ -74,31 +85,43 @@
                 </div>
             }
 
-            <!-- ─── Variants ──────────────────────────────────────────── -->
-            @if (Model.Variants.Any())
+            <!-- ─── Variant selectors ─────────────────────────────────── -->
+            @if (Model.HasVariants)
             {
-                <div class="mb-8">
-                    <p class="text-xs tracking-[0.2em] uppercase text-neutral-500 mb-3">Size</p>
-                    <div class="flex flex-wrap gap-2">
-                        @foreach (var v in Model.Variants)
-                        {
-                            <button type="button"
-                                    class="variant-btn border border-neutral-300 text-xs px-4 py-2 hover:border-neutral-900 hover:text-neutral-900 transition-colors"
-                                    data-variant-id="@v.Id">
-                                @(v.Size ?? v.Name)
-                            </button>
-                        }
-                    </div>
+                <div id="variant-options" class="mb-6 space-y-5">
+                    @foreach (var attr in Model.AttributeOptions)
+                    {
+                        <div data-attribute="@attr.Name">
+                            <p class="text-xs tracking-[0.2em] uppercase text-neutral-500 mb-3">@attr.Name</p>
+                            <div class="flex flex-wrap gap-2">
+                                @foreach (var val in attr.Values)
+                                {
+                                    <button type="button"
+                                            class="variant-opt border border-neutral-300 text-xs px-4 py-2 transition-colors hover:border-neutral-900 hover:text-neutral-900"
+                                            data-attr="@attr.Name" data-value="@val">
+                                        @val
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
                 </div>
+                <p id="variant-status" class="text-xs tracking-wider text-neutral-400 mb-8">Select options to see availability</p>
             }
 
             <!-- ─── Actions ───────────────────────────────────────────── -->
             <div class="flex gap-3 mb-8">
+                @{
+                    var addDisabled = Model.HasVariants || !Model.IsAvailableAnywhere;
+                    var addLabel = Model.HasVariants ? "Select Options"
+                        : (Model.IsAvailableAnywhere ? "Add to Bag" : "Out of Stock");
+                }
                 <button id="add-to-cart"
                         data-product-id="@Model.Id"
-                        @(!Model.IsAvailableAnywhere ? "disabled" : "")
+                        data-has-variants="@(Model.HasVariants ? "true" : "false")"
+                        @(addDisabled ? "disabled" : "")
                         class="flex-1 bg-neutral-900 text-white text-xs tracking-[0.2em] uppercase py-4 px-8 hover:bg-brand transition-colors duration-300 disabled:opacity-40 disabled:cursor-not-allowed">
-                    @(Model.IsAvailableAnywhere ? "Add to Bag" : "Out of Stock")
+                    @addLabel
                 </button>
                 <button id="wishlist-btn"
                         data-product-id="@Model.Id"
@@ -187,31 +210,83 @@
 @section Scripts {
 <script>
 (function () {
-    let selectedVariantId = null;
+    const variants = @Html.Raw(variantsJson);
+    const addBtn = document.getElementById('add-to-cart');
+    const hasVariants = addBtn?.dataset.hasVariants === 'true';
+    const priceEl = document.getElementById('product-price');
+    const statusEl = document.getElementById('variant-status');
+    const basePriceLabel = priceEl ? priceEl.textContent : '';
 
-    // Variant selection
-    document.querySelectorAll('.variant-btn').forEach(btn => {
+    let selectedVariantId = null;
+    const selected = {};   // attribute name -> chosen value
+
+    // Which attributes must be chosen (one selector group per attribute)
+    const attrGroups = Array.from(document.querySelectorAll('#variant-options [data-attribute]'))
+        .map(g => g.dataset.attribute);
+
+    function findVariant() {
+        return variants.find(v =>
+            attrGroups.every(a => v.values[a] === selected[a]));
+    }
+
+    function refresh() {
+        if (!hasVariants) return;
+        const allChosen = attrGroups.every(a => selected[a]);
+        if (!allChosen) {
+            selectedVariantId = null;
+            addBtn.disabled = true;
+            addBtn.textContent = 'Select Options';
+            if (statusEl) { statusEl.textContent = 'Select options to see availability'; statusEl.className = 'text-xs tracking-wider text-neutral-400 mb-8'; }
+            return;
+        }
+        const v = findVariant();
+        if (!v) {
+            selectedVariantId = null;
+            addBtn.disabled = true;
+            addBtn.textContent = 'Unavailable';
+            if (statusEl) { statusEl.textContent = 'This combination is not available'; statusEl.className = 'text-xs tracking-wider text-neutral-400 mb-8'; }
+            return;
+        }
+        selectedVariantId = v.id;
+        if (priceEl) priceEl.textContent = v.formattedPrice;
+        if (v.available > 0) {
+            addBtn.disabled = false;
+            addBtn.textContent = 'Add to Bag';
+            if (statusEl) { statusEl.textContent = v.available + ' in stock'; statusEl.className = 'text-xs tracking-wider text-emerald-700 mb-8'; }
+        } else {
+            addBtn.disabled = true;
+            addBtn.textContent = 'Out of Stock';
+            if (statusEl) { statusEl.textContent = 'Out of stock'; statusEl.className = 'text-xs tracking-wider text-neutral-400 mb-8'; }
+        }
+    }
+
+    // Attribute option buttons
+    document.querySelectorAll('.variant-opt').forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('.variant-btn').forEach(b => b.classList.remove('border-neutral-900', 'bg-neutral-900', 'text-white'));
+            const attr = btn.dataset.attr;
+            // Toggle selection within this attribute group
+            document.querySelectorAll(`.variant-opt[data-attr="${attr}"]`).forEach(b =>
+                b.classList.remove('border-neutral-900', 'bg-neutral-900', 'text-white'));
             btn.classList.add('border-neutral-900', 'bg-neutral-900', 'text-white');
-            selectedVariantId = btn.dataset.variantId;
+            selected[attr] = btn.dataset.value;
+            refresh();
         });
     });
 
     // Add to cart
-    document.getElementById('add-to-cart')?.addEventListener('click', async () => {
+    addBtn?.addEventListener('click', async () => {
+        if (hasVariants && !selectedVariantId) return;
         const productId = @Model.Id;
         const body = new URLSearchParams({ productId, quantity: 1 });
         if (selectedVariantId) body.append('variantId', selectedVariantId);
 
-        const btn = document.getElementById('add-to-cart');
         const res = await fetch('/Cart/Add', { method: 'POST', body, headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '' } });
         const data = await res.json();
         if (data.success) {
             if (window.updateCartBadge) window.updateCartBadge(data.cartCount);
-            const orig = btn.textContent;
-            btn.textContent = 'Added to Bag ✓';
-            setTimeout(() => { btn.textContent = orig; }, 1500);
+            const orig = addBtn.textContent;
+            addBtn.textContent = 'Added to Bag ✓';
+            setTimeout(() => { addBtn.textContent = orig; }, 1500);
         } else if (data.message) {
             alert(data.message);
         }
