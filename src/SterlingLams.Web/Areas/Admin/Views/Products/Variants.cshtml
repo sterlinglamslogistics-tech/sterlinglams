@@ -26,21 +26,45 @@
     }
     else
     {
-        <form asp-area="Admin" asp-controller="Products" asp-action="GenerateVariants" asp-route-id="@Model.ProductId" method="post" class="space-y-4">
+        <form asp-area="Admin" asp-controller="Products" asp-action="GenerateVariants" asp-route-id="@Model.ProductId" method="post" class="space-y-3">
             @Html.AntiForgeryToken()
+            @{ var ai = 0; }
             @foreach (var attr in Model.Attributes)
             {
-                <div>
-                    <p class="text-xs font-medium text-neutral-600 mb-2">@attr.Name</p>
-                    <div class="flex flex-wrap gap-2">
-                        @foreach (var v in attr.Values.OrderBy(v => v.DisplayOrder).ThenBy(v => v.Value))
+                var big = attr.Values.Count > 12;          // searchable + collapsed for long lists
+                var selCount = attr.Values.Count(v => Model.SelectedValueIds.Contains(v.Id));
+                ai++;
+                <div class="border border-neutral-100 rounded-sm" data-picker>
+                    <button type="button" data-toggle
+                            class="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-neutral-50 transition-colors">
+                        <span class="text-xs font-medium text-neutral-600">
+                            @attr.Name
+                            <span class="ml-2 text-[10px] text-neutral-400" data-count>@(selCount > 0 ? $"{selCount} selected" : "")</span>
+                        </span>
+                        <span class="text-neutral-300 text-[10px]" data-caret>@(big ? "▾" : "")</span>
+                    </button>
+
+                    <!-- chips of currently-selected values (visible even when collapsed) -->
+                    <div class="px-3 pb-2 flex flex-wrap gap-1.5 @(selCount == 0 ? "hidden" : "")" data-chips></div>
+
+                    <!-- option list (collapsed by default for long lists) -->
+                    <div class="px-3 pb-3 @(big ? "hidden" : "")" data-body>
+                        @if (big)
                         {
-                            <label class="inline-flex items-center gap-1.5 border border-neutral-200 rounded-sm px-3 py-1.5 text-xs cursor-pointer hover:border-neutral-400 has-[:checked]:border-brand has-[:checked]:bg-brand-soft">
-                                <input type="checkbox" name="valueIds" value="@v.Id" class="accent-brand"
-                                       @(Model.SelectedValueIds.Contains(v.Id) ? "checked" : "") />
-                                @v.Value
-                            </label>
+                            <input type="text" placeholder="Search @attr.Name…" data-search
+                                   class="w-full mb-2 border border-neutral-200 rounded-sm px-2 py-1 text-xs focus:outline-none focus:border-brand" />
                         }
+                        <div class="flex flex-wrap gap-2" data-options>
+                            @foreach (var v in attr.Values.OrderBy(v => v.DisplayOrder).ThenBy(v => v.Value))
+                            {
+                                <label data-opt data-label="@v.Value.ToLowerInvariant()"
+                                       class="inline-flex items-center gap-1.5 border border-neutral-200 rounded-sm px-3 py-1.5 text-xs cursor-pointer hover:border-neutral-400 has-[:checked]:border-brand has-[:checked]:bg-brand-soft">
+                                    <input type="checkbox" name="valueIds" value="@v.Id" class="accent-brand" data-val="@v.Value"
+                                           @(Model.SelectedValueIds.Contains(v.Id) ? "checked" : "") />
+                                    @v.Value
+                                </label>
+                            }
+                        </div>
                     </div>
                 </div>
             }
@@ -48,6 +72,51 @@
                 Generate Variants
             </button>
         </form>
+
+        <script>
+        (function () {
+            document.querySelectorAll('[data-picker]').forEach(function (picker) {
+                var body   = picker.querySelector('[data-body]');
+                var chips  = picker.querySelector('[data-chips]');
+                var count  = picker.querySelector('[data-count]');
+                var search = picker.querySelector('[data-search]');
+                var toggle = picker.querySelector('[data-toggle]');
+                var opts   = Array.prototype.slice.call(picker.querySelectorAll('[data-opt]'));
+
+                function refresh() {
+                    var checked = opts.map(function (o) { return o.querySelector('input'); })
+                                      .filter(function (i) { return i.checked; });
+                    count.textContent = checked.length ? checked.length + ' selected' : '';
+                    chips.innerHTML = '';
+                    chips.classList.toggle('hidden', checked.length === 0);
+                    checked.forEach(function (input) {
+                        var chip = document.createElement('span');
+                        chip.className = 'inline-flex items-center gap-1 bg-brand-soft text-brand border border-neutral-200 rounded-sm px-2 py-0.5 text-[11px]';
+                        var btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.textContent = '✕';
+                        btn.className = 'hover:text-rose-600';
+                        btn.addEventListener('click', function () { input.checked = false; refresh(); });
+                        chip.appendChild(document.createTextNode(input.dataset.val + ' '));
+                        chip.appendChild(btn);
+                        chips.appendChild(chip);
+                    });
+                }
+
+                toggle.addEventListener('click', function () { if (body) body.classList.toggle('hidden'); });
+                opts.forEach(function (o) { o.querySelector('input').addEventListener('change', refresh); });
+                if (search) {
+                    search.addEventListener('input', function () {
+                        var q = search.value.toLowerCase();
+                        opts.forEach(function (o) {
+                            o.classList.toggle('hidden', q && o.dataset.label.indexOf(q) === -1);
+                        });
+                    });
+                }
+                refresh();
+            });
+        })();
+        </script>
     }
 </div>
 
